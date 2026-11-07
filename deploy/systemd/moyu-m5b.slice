@@ -1,0 +1,13 @@
+# One enforceable memory boundary for the MoYu M5-B test/system service.
+# Platform API, dispatcher, supervisor, PostgreSQL and every runtime instance
+# must be members of this slice. The supervisor creates its instance cgroups
+# inside the slice (MOYU_CGROUP_ROOT=/sys/fs/cgroup/moyu-m5b.slice/moyu-supervisor).
+[Unit]
+Description=MoYu M5-B system memory boundary
+Documentation=https://github.com/bouyer-sutrasky/MoYu
+
+[Slice]
+MemoryAccounting=yes
+# 6 GiB is the scheduling budget; 8 GiB is the highest aggregate boundary.
+MemoryHigh=6G
+MemoryMax=8G

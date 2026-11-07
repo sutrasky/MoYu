@@ -9,6 +9,7 @@ import { RuntimeBridgeClient } from '@moyu/runtime-client';
 import { loadDispatcherConfig, type DispatcherConfig } from '../../src/config';
 import { deliverOnce } from '../../src/delivery';
 import { createConsoleLogger } from '../../src/logger';
+import { acquireExecutionLease } from '../../src/leases';
 import { maintainLeases, operationsOnce, reconcileTasks } from '../../src/operations';
 import { captureReportsOnce } from '../../src/reports';
 import type { RepositoryBinding } from '../../src/runtime';
@@ -403,6 +404,57 @@ describe('M4 task operations, reconciliation and GitHub import on real PostgreSQ
     fakeBridge.operationError = null;
   }, 30_000);
 
+  it('keeps the execution slot when a pause has no proven stop and blocks a second executor', async () => {
+    const fixture = await seed({ state: 'stopping' });
+    const lease = await testDatabase.pool.query<{ id: string }>(
+      `insert into runtime_leases (repository_id, holder_id, expires_at)
+       values ($1, 'dispatcher:test', now() + interval '10 minutes') returning id`,
+      [fixture.repository.id],
+    );
+    const leaseId = lease.rows[0]!.id;
+    await testDatabase.pool.query(`update task_links set runtime_lease_id = $2 where id = $1`, [
+      fixture.taskId,
+      leaseId,
+    ]);
+    await insertOperation(fixture, 'pause', `cmd-unproven-${Date.now()}`);
+    fakeBridge.operationState = 'succeeded';
+    fakeBridge.operationEvidence = {
+      ticketId: fixture.ticketId,
+      agentStatus: 'running',
+      jobsAfter: [{ id: 'bash-1', name: 'sleep 300' }],
+      subagentsAfter: 0,
+      stoppedAt: new Date().toISOString(),
+    };
+    const logger = createConsoleLogger('test');
+
+    await operationsOnce(testDatabase.pool, config, fixture.repository, client, logger);
+    await makeOperationsDue();
+    await operationsOnce(testDatabase.pool, config, fixture.repository, client, logger);
+
+    const task = await readTask(fixture.taskId);
+    expect(task.state).toBe('blocked');
+    expect(task.runtimeLeaseId).toBe(leaseId);
+    const held = await testDatabase.pool.query<{ state: string; recovery_state: string }>(
+      `select state, recovery_state from runtime_leases where id = $1`,
+      [leaseId],
+    );
+    expect(held.rows[0]).toMatchObject({ state: 'active', recovery_state: 'required' });
+
+    // A surviving old execution (no proof) must keep the second executor out.
+    const second = await seed({ state: 'waiting_input', repository: fixture.repository });
+    const refused = await acquireExecutionLease(
+      testDatabase.pool,
+      fixture.repository.id,
+      { taskId: second.taskId },
+      60_000,
+    );
+    expect(refused.lease).toBeNull();
+    expect(refused.refused).toBe('stop_proof_required');
+
+    fakeBridge.operationState = 'succeeded';
+    fakeBridge.operationEvidence = {};
+  }, 30_000);
+
   it('settles the pause operation from the paused event before the operation poll', async () => {
     const fixture = await seed({ state: 'stopping' });
     const operationId = await insertOperation(fixture, 'pause', `cmd-event-${Date.now()}`);
@@ -726,7 +778,7 @@ describe('M4 task operations, reconciliation and GitHub import on real PostgreSQ
     expect(task.stoppedAt).toBeNull();
     expect(task.runtimeLeaseId).toEqual(expect.any(String));
 
-    await maintainLeases(testDatabase.pool, fixture.repository, 60_000);
+    await maintainLeases(testDatabase.pool, config, fixture.repository, client, logger);
     const lease = await testDatabase.pool.query(
       `select state, expires_at from runtime_leases where id = $1`,
       [task.runtimeLeaseId],
@@ -752,8 +804,9 @@ describe('M4 task operations, reconciliation and GitHub import on real PostgreSQ
     };
     const waitingLease = await leaseFor(waiting, waiting.taskId);
     const runningLease = await leaseFor(running, running.taskId);
+    const logger = createConsoleLogger('test');
 
-    await maintainLeases(testDatabase.pool, waiting.repository, 60_000);
+    await maintainLeases(testDatabase.pool, config, waiting.repository, client, logger);
 
     const states = await testDatabase.pool.query<{ id: string; state: string }>(
       'select id, state from runtime_leases where id = any($1::uuid[])',

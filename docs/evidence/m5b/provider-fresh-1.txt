@@ -1,0 +1,15 @@
+date=2026-11-06T14:40:00+08:00
+build=/opt/m5b-live/upstream-build lib_index_sha256=c2bb690163cfe8af00d477ecca7ff35b6d757be53bc90dea4398e94ac04590c3
+profile=probe1 panel=3952 bridge=3951 MOYU_REQUIRE_ADMISSION=1
+provider=loopback 3851 model local-test synthetic
+candidate=workspace:fresh-1 explicit admission lease=...801 token=9
+route=request 5 user messages, tools include orchestrator_route; response tool_calls finish=tool_calls id=chatcmpl-local-1 arguments decisions accept trigger workspace:fresh-1
+session_tool_result=next request assistant+tool, provider finish=stop
+ticket=e6207def88b343ae92f145b7dd1c77af assignment=094c2598a782bd99ad97c55c0065ab7d state=running
+prepare=clone succeeded; worktree /var/lib/m5b-live/worktrees/probe1/fix-readme-probe-e6207def88b3
+worker_model=request tools include bash/edit/glob/grep; synthetic reply stop, report state=waiting
+child_process=none observed: worker runs in the DSH process/cgroup; no shell child because provider returned a final response
+runtime_pid=861821 cgroup=/m5bfresh.slice/m5b-fresh-runtime.service memory_max=536870912
+second_candidate=workspace:fresh-2 stored; no new provider request or ticket event, so it did not reach assessment in the same DSH state
+side_effect_count=1 Ticket, 1 Assignment, 0 worker child, 1 prepare worktree
+boundary=loopback synthetic; shared 3082 and production credentials untouched

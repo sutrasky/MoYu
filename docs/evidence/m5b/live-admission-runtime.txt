@@ -1,0 +1,19 @@
+date=2026-11-06T11:58:00+08:00
+build=/root/src/upstream/m5b-admission-build2
+package_json_sha256=d428e669805ea1dfb6a4900bddbffe3cafb8f06a0b1eb139266c2b2f6b94b021
+lib_index_sha256=9039636db48de380131a3f1ecfe9068658be8758319ea8936e5d50bd168eedf9
+profile=/root/.dsh-m5-adm/profiles/admission
+panel=http://127.0.0.1:3602 bridge=http://127.0.0.1:3601
+MOYU_REQUIRE_ADMISSION=1
+runtime_unit=m5b-adm-runtime.service
+runtime_cgroup=/m5bprobeadm.slice/m5b-adm-runtime.service
+runtime_memory_max=536870912 (512 MiB)
+runtime_memory_current_at_probe=235548672
+capabilities=trigger,events,tickets,models,branches,pause,resume,retry,readOnlyDiscussion,start,admission=true
+healthz={"ok":true,"configured":false}
+trigger_without_admission=422 {"error":{"code":"admissionRequired","message":"A trigger that may execute requires an execution lease admission"}}
+trigger_with_admission_unconfigured=503 {"error":"The runtime is not ready"}
+start_without_admission=422 {"error":{"code":"admissionRequired","message":"Starting requires an execution lease admission"}}
+retry_without_admission=422 {"error":{"code":"admissionRequired","message":"Retrying requires an execution lease admission"}}
+bridge_events_after_rejection=0 lines
+side_effect=none: no Trigger/Ticket/Assignment/event was created for the rejected requests

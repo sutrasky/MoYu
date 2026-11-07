@@ -35,6 +35,26 @@ function writePrivate(path: string, content: string): void {
   chmodSync(path, 0o600);
 }
 
+/** The managed instance environment written under `INSTANCE_ENV_DIR`. */
+export function instanceEnvironment(input: {
+  platformUrl: string;
+  platformToken: string;
+  bridgeToken: string;
+  bridgePort: number;
+}): string {
+  return [
+    `MOYU_PLATFORM_URL=${input.platformUrl}`,
+    `MOYU_PLATFORM_TOKEN=${input.platformToken}`,
+    `MOYU_BRIDGE_TOKEN=${input.bridgeToken}`,
+    'MOYU_BRIDGE_HOST=127.0.0.1',
+    `MOYU_BRIDGE_PORT=${input.bridgePort}`,
+    // Managed instances always enforce execution admission; the capability
+    // is advertised only when this flag is on.
+    'MOYU_REQUIRE_ADMISSION=1',
+    '',
+  ].join('\n');
+}
+
 export function parseEnvFile(path: string): Record<string, string> {
   const values: Record<string, string> = {};
   for (const line of readFileSync(path, 'utf8').split('\n')) {
@@ -176,14 +196,12 @@ export async function prepareInstance(
   writePrivate(credentialsFile, `${JSON.stringify({ bridgeUrl, ...credentials }, null, 2)}\n`);
   writePrivate(
     envFile,
-    [
-      `MOYU_PLATFORM_URL=${config.platformUrl}`,
-      `MOYU_PLATFORM_TOKEN=${credentials.callbackToken}`,
-      `MOYU_BRIDGE_TOKEN=${credentials.bridgeToken}`,
-      'MOYU_BRIDGE_HOST=127.0.0.1',
-      `MOYU_BRIDGE_PORT=${bridgePort}`,
-      '',
-    ].join('\n'),
+    instanceEnvironment({
+      platformUrl: config.platformUrl,
+      platformToken: credentials.callbackToken,
+      bridgeToken: credentials.bridgeToken,
+      bridgePort,
+    }),
   );
 
   await store.setBridgeBinding(repository.id, {

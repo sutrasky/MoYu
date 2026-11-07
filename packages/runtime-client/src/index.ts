@@ -1,4 +1,6 @@
 import {
+  bridgeAdmitInputSchema,
+  bridgeAdmitResultSchema,
   bridgeBranchListSchema,
   bridgeCapabilitiesSchema,
   bridgeEventPageSchema,
@@ -12,6 +14,8 @@ import {
   bridgeTicketSnapshotSchema,
   bridgeTriggerInputSchema,
   bridgeTriggerResultSchema,
+  type BridgeAdmitInput,
+  type BridgeAdmitResult,
   type BridgeBranchList,
   type BridgeCapabilities,
   type BridgeEventPage,
@@ -185,6 +189,18 @@ export class RuntimeBridgeClient {
       `/bridge/v1/tickets/${encodeURIComponent(ticketId)}/retry`,
       bridgeOperationAcceptedSchema,
       { method: 'POST', body: bridgeRetryInputSchema.parse(input), signal, timeoutMs: 30_000 },
+    );
+  }
+
+  async admit(
+    ticketId: string,
+    input: BridgeAdmitInput,
+    signal?: AbortSignal,
+  ): Promise<BridgeAdmitResult> {
+    return this.request(
+      `/bridge/v1/tickets/${encodeURIComponent(ticketId)}/admit`,
+      bridgeAdmitResultSchema,
+      { method: 'POST', body: bridgeAdmitInputSchema.parse(input), signal, timeoutMs: 30_000 },
     );
   }
 

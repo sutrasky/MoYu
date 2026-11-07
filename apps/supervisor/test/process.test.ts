@@ -345,3 +345,149 @@ describe('queued wake merge', () => {
     ).toEqual({ queuePriority: 20, wakeRequestedAt: at });
   });
 });
+
+describe('pre-exec cgroup handshake', () => {
+  it('does not run the command before the supervisor releases it', async () => {
+    const { spawn } = await import('node:child_process');
+    const { mkdtempSync, existsSync, rmSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const dir = mkdtempSync(join(tmpdir(), 'm5b-handshake-'));
+    const marker = join(dir, 'started');
+    const child = spawn(
+      '/bin/sh',
+      ['-c', 'read go <&3; exec /bin/sh -c "touch $1"', 'moyu-cgroup', marker],
+      {
+        detached: true,
+        stdio: ['ignore', 'ignore', 'ignore', 'pipe'],
+      },
+    );
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      expect(existsSync(marker)).toBe(false);
+      const release = child.stdio[3] as import('node:stream').Writable | null;
+      expect(release && 'end' in release).toBe(true);
+      release!.end('go\n');
+      await new Promise<void>((resolve, reject) => {
+        child.once('exit', (code) => (code === 0 ? resolve() : reject(new Error(`exit ${code}`))));
+        child.once('error', reject);
+      });
+      expect(existsSync(marker)).toBe(true);
+    } finally {
+      try {
+        process.kill(-child.pid!, 'SIGKILL');
+      } catch {
+        /* already exited */
+      }
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('cgroup launcher only accepts a positive release', () => {
+  const run = async (release: 'eof' | 'wrong' | 'go', marker: string) => {
+    const { spawn } = await import('node:child_process');
+    const { CGROUP_LAUNCHER } = await import('../src/process');
+    const child = spawn(
+      '/bin/sh',
+      ['-c', CGROUP_LAUNCHER, 'moyu-cgroup', '/bin/sh', '-c', `touch ${marker}`],
+      {
+        detached: true,
+        stdio: ['ignore', 'ignore', 'ignore', 'pipe'],
+      },
+    );
+    const pipe = child.stdio[3] as import('node:stream').Writable | null;
+    if (release === 'eof') pipe!.end();
+    else pipe!.end(release === 'go' ? 'go\n' : 'nope\n');
+    const code = await new Promise<number | null>((resolve, reject) => {
+      child.once('exit', resolve);
+      child.once('error', reject);
+    });
+    try {
+      process.kill(-child.pid!, 'SIGKILL');
+    } catch {
+      /* already exited */
+    }
+    return code;
+  };
+
+  it('does not execute on EOF or a wrong release, and does on the exact release', async () => {
+    const { mkdtempSync, existsSync, rmSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const dir = mkdtempSync(join(tmpdir(), 'm5b-launcher-'));
+    try {
+      const eofMarker = join(dir, 'eof'),
+        wrongMarker = join(dir, 'wrong'),
+        goMarker = join(dir, 'go');
+      expect(await run('eof', eofMarker)).toBe(126);
+      expect(existsSync(eofMarker)).toBe(false);
+      expect(await run('wrong', wrongMarker)).toBe(127);
+      expect(existsSync(wrongMarker)).toBe(false);
+      expect(await run('go', goMarker)).toBe(0);
+      expect(existsSync(goMarker)).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('exits without executing when the parent dies before release', async () => {
+    const { spawn } = await import('node:child_process');
+    const { mkdtempSync, existsSync, rmSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const { CGROUP_LAUNCHER } = await import('../src/process');
+    const dir = mkdtempSync(join(tmpdir(), 'm5b-parent-kill-'));
+    const marker = join(dir, 'executed');
+    const script = [
+      "const {spawn}=require('node:child_process')",
+      "const c=spawn('/bin/sh',['-c',process.env.LAUNCHER,'moyu-cgroup','/bin/sh','-c',`touch ${process.env.MARKER}`],{detached:true,stdio:['ignore','ignore','ignore','pipe']})",
+      'console.log(c.pid)',
+      'setInterval(()=>{},1000)',
+    ].join(';');
+    const parent = spawn(process.execPath, ['-e', script], {
+      env: { ...process.env, LAUNCHER: CGROUP_LAUNCHER, MARKER: marker },
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    try {
+      await new Promise<void>((resolve) => parent.stdout!.once('data', () => resolve()));
+      process.kill(parent.pid!, 'SIGKILL');
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      expect(existsSync(marker)).toBe(false);
+    } finally {
+      try {
+        process.kill(parent.pid!, 'SIGKILL');
+      } catch {
+        /* already exited */
+      }
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('cgroup release pipe', () => {
+  it('does not crash the supervisor when the child dies before release', async () => {
+    const { spawn } = await import('node:child_process');
+    const { CGROUP_LAUNCHER } = await import('../src/process');
+    const child = spawn(
+      '/bin/sh',
+      ['-c', CGROUP_LAUNCHER, 'moyu-cgroup', '/bin/sh', '-c', 'sleep 5'],
+      {
+        detached: true,
+        stdio: ['ignore', 'ignore', 'ignore', 'pipe'],
+      },
+    );
+    const pipe = child.stdio[3] as import('node:stream').Writable | null;
+    const errors: Error[] = [];
+    pipe!.on('error', (error) => errors.push(error));
+    process.kill(child.pid!, 'SIGKILL');
+    pipe!.end('go\n');
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(errors.length).toBeLessThanOrEqual(1);
+    try {
+      process.kill(-child.pid!, 'SIGKILL');
+    } catch {
+      /* already exited */
+    }
+  });
+});

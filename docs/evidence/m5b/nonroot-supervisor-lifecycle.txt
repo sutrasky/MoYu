@@ -1,0 +1,19 @@
+date=2026-11-06T12:23:00+08:00
+supervisor_uid=995(moyu-m5b) supervisor_gid=986(moyu-m5b)
+build=/opt/moyu-m5b/upstream-build (pinned 6337fc8 + 0001..0023)
+supervisor_bundle=/opt/moyu-m5b/deploy/dist/main.js
+database=postgres://moyu@127.0.0.1:55432/moyu_m5b_sup
+profile=probe1 panel=127.0.0.1:3702 bridge=127.0.0.1:3701 control=127.0.0.1:3790
+unit=m5b-sup.service slice=/m5bsupprobe.slice
+supervisor_cgroup=/m5bsupprobe.slice/m5b-sup.service/supervisor
+instance_cgroup=/m5bsupprobe.slice/m5b-sup.service/instances/probe1-1793938963157
+slice_memory_max=4294967296 (4 GiB)
+instance_memory_max=536870912 (512 MiB)
+instance_memory_current_online=228519936
+slice_memory_current_online=262250496
+host_mem_available_online=14027196 kB
+start=wake accepted; state online; pid 758912; process uid 995; cgroup instance_cgroup
+stop=sleep accepted true; state sleeping; pid gone; ports 3701/3702 closed; instance cgroup procs empty
+restart=supervisor stopped: control/runtime ports closed and no dsh process; restart: instance stayed sleeping, no auto-start; wake after restart: online with pid 758912 again; final sleep clean
+stop_proof_note=before the fix a stop logged stop_failed (remaining=0, portClosed=true) despite an empty cgroup; now an empty readable cgroup is accepted as boundary proof, while a no-cgroup unknown boundary still blocks (supervisor tests 28 pass)
+not_covered=dual-entry ordering and pause/start race against the platform dispatcher; three-repository queueing; full-stack 8 GiB pressure

@@ -3,6 +3,7 @@ import type {
   MessageKind,
   ModelSelection,
   RepositoryRuntime,
+  RuntimeResource,
   TaskState,
 } from '@moyu/contracts';
 
@@ -79,9 +80,36 @@ export function waitingForLabel(waitingFor: string | null | undefined): string |
       return '等待你审阅';
     case 'supervisor':
       return '等待 supervisor';
+    case 'memory':
+      return '等待内存余量';
+    case 'execution_stop_proof':
+      return '等待旧执行停止证明';
+    case 'runtime_ticket':
+      return '等待运行时票据';
+    case 'runtime':
+      return '等待运行时';
     default:
       return null;
   }
+}
+
+/** A measured cgroup size for the repository panel; zero is a real value, not unknown. */
+export function formatBytes(bytes: number | null | undefined): string | null {
+  if (bytes == null || !Number.isFinite(bytes)) return null;
+  if (bytes >= 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GiB`;
+  if (bytes >= 1024 * 1024) return `${Math.round(bytes / (1024 * 1024))} MiB`;
+  return `${Math.round(bytes / 1024)} KiB`;
+}
+
+export function runtimeResourceLabel(resource: RuntimeResource | null | undefined): string | null {
+  if (!resource) return null;
+  if (resource.state === 'oom') return '已发生 OOM，等待人工处理';
+  if (resource.state === 'resource_wait' || resource.state === 'over_budget') {
+    return '内存不足，等待实测余量';
+  }
+  const size = formatBytes(resource.memoryCurrentBytes);
+  if (resource.state === 'unknown') return size ? `内存 ${size}（限额未知）` : '内存占用未知';
+  return size ? `内存 ${size}` : null;
 }
 
 export function formatModel(model: ModelSelection | null | undefined): string {

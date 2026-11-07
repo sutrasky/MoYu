@@ -55,6 +55,7 @@ node --test integrations/superagent/tests/verify-lock.test.mjs
 | `0009-discussion-ready-stays-open.patch` | 讨论 ready 不结束 Ticket，owner 仍可 start |
 | `0010-projection-current-assignment.patch` | 新 Assignment 后不再用旧 ready report 挡住运行态 |
 | `0011-resume-does-not-reopen-closed-pr.patch` | resume/start 指示不重开已关闭未合并的 PR |
+| `0023-execution-admission.patch` | M5-B 执行租约 admission：trigger/start/retry 必须携带当前代次；GitHub Ticket 先 `pending_admission`，平台 `/admit` 后才创建 Assignment；`MOYU_REQUIRE_ADMISSION=1` 启用 |
 
 构建与验证见 [`docs/M4-VERIFICATION.md`](../../docs/M4-VERIFICATION.md)。
 

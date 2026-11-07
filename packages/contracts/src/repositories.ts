@@ -32,6 +32,31 @@ export const repositoryRuntimeActionSchema = z.object({
 
 export type RepositoryRuntimeAction = z.infer<typeof repositoryRuntimeActionSchema>;
 
+/** Measured cgroup memory for one instance; never an estimate labelled as a measurement. */
+export const runtimeResourceSchema = z.object({
+  state: z.enum(['ok', 'resource_wait', 'over_budget', 'oom', 'unknown']),
+  detail: z.string().nullable(),
+  memoryCurrentBytes: z.number().int().nonnegative().nullable(),
+  memoryPeakBytes: z.number().int().nonnegative().nullable(),
+  memoryLimitBytes: z.number().int().nonnegative().nullable(),
+  oomKillCount: z.number().int().nonnegative(),
+  checkedAt: isoTimestampSchema.nullable(),
+});
+
+export type RuntimeResource = z.infer<typeof runtimeResourceSchema>;
+
+/** The repository execution lease generation visible to the owner. */
+export const runtimeLeaseSchema = z.object({
+  /** Decimal string because the fencing token is a bigint. */
+  fencingToken: z.string().regex(/^(0|[1-9][0-9]*)$/),
+  recoveryState: z.string().min(1),
+  waitingFor: z.string().nullable(),
+  detail: z.string().nullable(),
+  stopProvenAt: isoTimestampSchema.nullable(),
+});
+
+export type RuntimeLeaseProjection = z.infer<typeof runtimeLeaseSchema>;
+
 /**
  * The repository runtime projection. `reason` is already sanitised for display;
  * `reasonCode`/`waitingFor` stay machine-readable so the UI does not infer a
@@ -53,6 +78,10 @@ export const repositoryRuntimeSchema = z.object({
   lastStartedAt: isoTimestampSchema.nullable(),
   lastStoppedAt: isoTimestampSchema.nullable(),
   lastHealthAt: isoTimestampSchema.nullable(),
+  /** Measured memory of this instance, when the supervisor has a cgroup sample. */
+  resource: runtimeResourceSchema.nullable(),
+  /** Current execution lease generation, when one exists for this repository. */
+  lease: runtimeLeaseSchema.nullable(),
   actions: z.array(repositoryRuntimeActionSchema),
 });
 

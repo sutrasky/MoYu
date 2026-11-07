@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 
 import { migrateDatabase } from '../../src/migrate';
-import { createTestDatabase, type TestDatabase } from './helpers';
+import { createTestDatabaseUpTo, type TestDatabase } from './helpers';
 
 const ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 const ROLLBACK = path.join(ROOT, 'packages/db/migrations/rollback/0012_fast_marvel_apes.down.sql');
@@ -56,7 +56,7 @@ describe('0012 rollback script on real PostgreSQL', () => {
   });
 
   it('removes the allocation indexes and re-applies them', async () => {
-    const database = await createTestDatabase();
+    const database = await createTestDatabaseUpTo(12);
     databases.push(database);
     expect(await read(database)).toEqual({ indexes: 3, ledger: 1 });
 

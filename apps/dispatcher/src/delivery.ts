@@ -1,12 +1,13 @@
 import type pg from 'pg';
 
-import type { RuntimeBridgeClient } from '@moyu/runtime-client';
+import { RuntimeBridgeError, type RuntimeBridgeClient } from '@moyu/runtime-client';
 
 import type { DispatcherConfig } from './config';
 import type { DispatcherLogger } from './logger';
 import type { RepositoryBinding } from './runtime';
 import { bridgeErrorMessage, isRetryableBridgeError } from './runtime';
 import { appendEventSql } from './events-sql';
+import { acquireExecutionLease, releaseExecutionLease } from './leases';
 import { TASK_COLUMNS, taskModel, type TaskRow } from './tasks';
 
 export const RUN_INSTANCE = `dispatcher-${process.pid}`;
@@ -176,6 +177,7 @@ export async function deliverOnce(
   repository: RepositoryBinding,
   bridge: RuntimeBridgeClient,
   logger: DispatcherLogger,
+  admissionSupported = true,
 ): Promise<boolean> {
   const claimed = await claimDelivery(pool, config, repository.id);
   if (!claimed) {
@@ -250,7 +252,60 @@ export async function deliverOnce(
         })
       : null;
 
+  let cleanupLease: { id: string; fencingToken: string } | null = null;
   try {
+    // Every launch and reply goes through the same repository execution lease.
+    // A refused lease leaves the message stored and waits; it does not deliver
+    // execution work beside an unproven or still-running admission.
+    const account = await acquireExecutionLease(
+      pool,
+      repository.id,
+      {
+        taskId: detail.taskId,
+        deliveryId: claimed.id,
+        reason: detail.taskId ? 'message reply' : 'task launch',
+      },
+      config.operationLeaseTtlMs,
+    );
+    if (!account.lease) {
+      await pool.query(
+        `update deliveries
+            set state='pending', next_attempt_at = now() + interval '5 seconds',
+                last_error=$2, evidence=$3, lease_owner=null, lease_expires_at=null, updated_at=now()
+          where id=$1`,
+        [
+          claimed.id,
+          account.detail,
+          JSON.stringify({
+            waitingFor: account.waitingFor,
+            leaseRefused: account.refused,
+          }),
+        ],
+      );
+      logger.warn(
+        {
+          event: 'delivery.lease_wait',
+          messageId: detail.messageId,
+          refused: account.refused,
+          waitingFor: account.waitingFor,
+        },
+        'delivery waits for the repository execution lease',
+      );
+      return true;
+    }
+    cleanupLease = account.lease;
+    await pool.query(
+      `update deliveries set runtime_lease_id=$2, fencing_token=$3, updated_at=now()
+        where id=$1`,
+      [claimed.id, account.lease.id, account.lease.fencingToken],
+    );
+    if (!admissionSupported) {
+      throw new RuntimeBridgeError(
+        'runtime_admission_unsupported: refusing to execute on a runtime without admission support',
+        { code: 'runtime_admission_unsupported', retryable: false },
+      );
+    }
+
     const result = await bridge.trigger({
       triggerId: claimed.triggerId,
       conversationId: detail.conversationId,
@@ -264,6 +319,9 @@ export async function deliverOnce(
       ...(detail.conversationSource === 'github' && detail.taskUpstreamTicketId
         ? { targetTicketId: detail.taskUpstreamTicketId }
         : {}),
+      ...(admissionSupported
+        ? { admission: { leaseId: account.lease.id, fencingToken: account.lease.fencingToken } }
+        : {}),
       executionSpec: {
         repository: detail.fullName,
         baseBranch: taskLike?.baseBranch ?? detail.baseBranch,
@@ -274,15 +332,35 @@ export async function deliverOnce(
     });
 
     if (result.result === 'filtered') {
-      await pool.query(
+      const updated = await pool.query(
         `update deliveries
             set state='failed', last_error=$2, evidence=$3, lease_owner=null, lease_expires_at=null, updated_at=now()
-          where id=$1`,
+          where id=$1 and runtime_lease_id=$4 and fencing_token=$5`,
         [
           claimed.id,
           'The runtime filtered this trigger (Source scope)',
           JSON.stringify({ result: result.result, httpStatus: 200 }),
+          account.lease.id,
+          account.lease.fencingToken,
         ],
+      );
+      if ((updated.rowCount ?? 0) === 0) {
+        logger.warn(
+          {
+            event: 'delivery.stale_receipt',
+            messageId: detail.messageId,
+            reason: 'filtered result',
+          },
+          'refused a filtered result from a superseded delivery generation',
+        );
+        return true;
+      }
+      await releaseExecutionLease(
+        pool,
+        repository.id,
+        account.lease.id,
+        'the runtime filtered the trigger; no execution started',
+        { source: 'trigger_filtered', at: new Date().toISOString() },
       );
       await recordDeliveryEvent(pool, {
         repositoryId: repository.id,
@@ -305,17 +383,31 @@ export async function deliverOnce(
     const client = await pool.connect();
     try {
       await client.query('begin');
-      await client.query(
+      const delivered = await client.query(
         `update deliveries
             set state='delivered', delivered_at=now(), upstream_trigger_id=$2, evidence=$3,
                 last_error=null, lease_owner=null, lease_expires_at=null, updated_at=now()
-          where id=$1`,
+          where id=$1 and runtime_lease_id=$4 and fencing_token=$5`,
         [
           claimed.id,
           claimed.triggerId,
           JSON.stringify({ result: result.result, httpStatus: 200, baseCommit: resolvedBase }),
+          account.lease.id,
+          account.lease.fencingToken,
         ],
       );
+      if ((delivered.rowCount ?? 0) === 0) {
+        await client.query('rollback');
+        logger.warn(
+          {
+            event: 'delivery.stale_receipt',
+            messageId: detail.messageId,
+            leaseId: account.lease.id,
+          },
+          'refused a delivered receipt from a superseded delivery generation',
+        );
+        return true;
+      }
       if (resolvedBase) {
         await client.query(
           `update conversations set base_commit=coalesce(base_commit,$2), updated_at=now() where id=$1`,
@@ -356,13 +448,26 @@ export async function deliverOnce(
   } catch (error) {
     if (isRetryableBridgeError(error)) {
       const delay = retryDelayMs(config, claimed.attemptCount);
-      await pool.query(
+      const retried = await pool.query(
         `update deliveries
             set state='pending', next_attempt_at = now() + make_interval(secs => $2),
                 last_error=$3, lease_owner=null, lease_expires_at=null, updated_at=now()
-          where id=$1`,
-        [claimed.id, delay / 1000, bridgeErrorMessage(error)],
+          where id=$1 and runtime_lease_id=$4 and fencing_token=$5`,
+        [
+          claimed.id,
+          delay / 1000,
+          bridgeErrorMessage(error),
+          cleanupLease?.id ?? '',
+          cleanupLease?.fencingToken ?? '',
+        ],
       );
+      if ((retried.rowCount ?? 0) === 0) {
+        logger.warn(
+          { event: 'delivery.stale_retry', messageId: detail.messageId },
+          'left a superseded delivery generation untouched',
+        );
+        return true;
+      }
       logger.warn(
         {
           event: 'delivery.retry',
@@ -376,12 +481,34 @@ export async function deliverOnce(
       return true;
     }
 
-    await pool.query(
+    const failed = await pool.query(
       `update deliveries
           set state='failed', last_error=$2, lease_owner=null, lease_expires_at=null, updated_at=now()
-        where id=$1`,
-      [claimed.id, bridgeErrorMessage(error)],
+        where id=$1 and runtime_lease_id=$3 and fencing_token=$4`,
+      [
+        claimed.id,
+        bridgeErrorMessage(error),
+        cleanupLease?.id ?? '',
+        cleanupLease?.fencingToken ?? '',
+      ],
     );
+    if ((failed.rowCount ?? 0) === 0) {
+      logger.warn(
+        { event: 'delivery.stale_failure', messageId: detail.messageId },
+        'refused a failure receipt from a superseded delivery generation',
+      );
+      return true;
+    }
+    // A permanently refused trigger cannot have produced a worker execution.
+    if (cleanupLease) {
+      await releaseExecutionLease(
+        pool,
+        repository.id,
+        cleanupLease.id,
+        'the runtime refused the trigger permanently',
+        { source: 'trigger_refused', at: new Date().toISOString() },
+      ).catch(() => undefined);
+    }
     await recordDeliveryEvent(pool, {
       repositoryId: repository.id,
       conversationId: detail.conversationId,

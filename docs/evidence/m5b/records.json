@@ -1,0 +1,134 @@
+[
+  {
+    "name": "before-desktop-light-beta-resource-wait",
+    "file": "/root/src/leases-resources-m5b-a59cb491b2e0/docs/evidence/m5b/before-desktop-light-beta-resource-wait.png",
+    "base": "http://127.0.0.1:4601",
+    "theme": "light",
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "repo": "Bouyer12/m5b-ui-beta"
+  },
+  {
+    "name": "after-desktop-light-beta-resource-wait",
+    "file": "/root/src/leases-resources-m5b-a59cb491b2e0/docs/evidence/m5b/after-desktop-light-beta-resource-wait.png",
+    "base": "http://127.0.0.1:4600",
+    "theme": "light",
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "repo": "Bouyer12/m5b-ui-beta"
+  },
+  {
+    "name": "before-mobile-light-beta-resource-wait",
+    "file": "/root/src/leases-resources-m5b-a59cb491b2e0/docs/evidence/m5b/before-mobile-light-beta-resource-wait.png",
+    "base": "http://127.0.0.1:4601",
+    "theme": "light",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "repo": "Bouyer12/m5b-ui-beta"
+  },
+  {
+    "name": "after-mobile-light-beta-resource-wait",
+    "file": "/root/src/leases-resources-m5b-a59cb491b2e0/docs/evidence/m5b/after-mobile-light-beta-resource-wait.png",
+    "base": "http://127.0.0.1:4600",
+    "theme": "light",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "repo": "Bouyer12/m5b-ui-beta"
+  },
+  {
+    "name": "before-desktop-dark-beta-resource-wait",
+    "file": "/root/src/leases-resources-m5b-a59cb491b2e0/docs/evidence/m5b/before-desktop-dark-beta-resource-wait.png",
+    "base": "http://127.0.0.1:4601",
+    "theme": "dark",
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "repo": "Bouyer12/m5b-ui-beta"
+  },
+  {
+    "name": "after-desktop-dark-beta-resource-wait",
+    "file": "/root/src/leases-resources-m5b-a59cb491b2e0/docs/evidence/m5b/after-desktop-dark-beta-resource-wait.png",
+    "base": "http://127.0.0.1:4600",
+    "theme": "dark",
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "repo": "Bouyer12/m5b-ui-beta"
+  },
+  {
+    "name": "before-mobile-dark-beta-resource-wait",
+    "file": "/root/src/leases-resources-m5b-a59cb491b2e0/docs/evidence/m5b/before-mobile-dark-beta-resource-wait.png",
+    "base": "http://127.0.0.1:4601",
+    "theme": "dark",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "repo": "Bouyer12/m5b-ui-beta"
+  },
+  {
+    "name": "after-mobile-dark-beta-resource-wait",
+    "file": "/root/src/leases-resources-m5b-a59cb491b2e0/docs/evidence/m5b/after-mobile-dark-beta-resource-wait.png",
+    "base": "http://127.0.0.1:4600",
+    "theme": "dark",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "repo": "Bouyer12/m5b-ui-beta"
+  },
+  {
+    "name": "before-desktop-light-gamma-retry-oom",
+    "file": "/root/src/leases-resources-m5b-a59cb491b2e0/docs/evidence/m5b/before-desktop-light-gamma-retry-oom.png",
+    "base": "http://127.0.0.1:4601",
+    "theme": "light",
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "repo": "Bouyer12/m5b-ui-gamma"
+  },
+  {
+    "name": "after-desktop-light-gamma-retry-oom",
+    "file": "/root/src/leases-resources-m5b-a59cb491b2e0/docs/evidence/m5b/after-desktop-light-gamma-retry-oom.png",
+    "base": "http://127.0.0.1:4600",
+    "theme": "light",
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "repo": "Bouyer12/m5b-ui-gamma"
+  },
+  {
+    "name": "before-desktop-light-alpha-online",
+    "file": "/root/src/leases-resources-m5b-a59cb491b2e0/docs/evidence/m5b/before-desktop-light-alpha-online.png",
+    "base": "http://127.0.0.1:4601",
+    "theme": "light",
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "repo": "Bouyer12/m5b-ui-alpha"
+  },
+  {
+    "name": "after-desktop-light-alpha-online",
+    "file": "/root/src/leases-resources-m5b-a59cb491b2e0/docs/evidence/m5b/after-desktop-light-alpha-online.png",
+    "base": "http://127.0.0.1:4600",
+    "theme": "light",
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "repo": "Bouyer12/m5b-ui-alpha"
+  }
+]

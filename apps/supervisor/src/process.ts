@@ -11,6 +11,8 @@ import {
 import { basename, join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 
+import { enableSubtreeControllers, readMemorySample } from './resources';
+
 export async function portFree(port: number, host = '127.0.0.1'): Promise<boolean> {
   return new Promise((resolve) => {
     const socket = createConnection({ host, port });
@@ -56,6 +58,12 @@ export interface ProcessOwnershipSnapshot {
 }
 
 export interface StoredOwnership {
+  execution?: {
+    ticketId: string;
+    assignmentId: string;
+    leaseId: string;
+    fencingToken: string;
+  } | null;
   rootPid?: number | null;
   pgid?: number | null;
   cgroup?: string | null;
@@ -213,6 +221,9 @@ export const CGROUP_ROOT = process.env.MOYU_CGROUP_ROOT ?? '/sys/fs/cgroup/moyu-
 export function ensureCgroup(profile: string): string | null {
   const path = join(CGROUP_ROOT, profile.replaceAll(/[^a-zA-Z0-9_.-]/g, '-'));
   try {
+    // The memory controller must be delegated before the child cgroup exists,
+    // otherwise memory.current is absent and the instance cannot be metered.
+    enableSubtreeControllers(CGROUP_ROOT);
     mkdirSync(path, { recursive: true, mode: 0o755 });
     // The kernel creates cgroup.procs; reading proves the hierarchy is usable.
     readFileSync(join(path, 'cgroup.procs'), 'utf8');
@@ -220,6 +231,15 @@ export function ensureCgroup(profile: string): string | null {
   } catch {
     return null;
   }
+}
+
+/** The launcher accepts only the parent's exact positive release; EOF and errors exit before exec. */
+export const CGROUP_LAUNCHER =
+  'IFS= read -r go <&3 || exit 126; [ "$go" = go ] || exit 127; exec "$@"';
+
+/** True when the cgroup's measured `memory.events` report an OOM kill. */
+export function cgroupOomKilled(path: string | null | undefined): boolean {
+  return (readMemorySample(path).events.oom_kill ?? 0) > 0;
 }
 
 export function movePidToCgroup(path: string, pid: number): boolean {
@@ -601,8 +621,13 @@ export async function stopProcessTree(
       const finalAlive = [...merged.values()].filter(identityAlive);
       const cgroupState = stored?.cgroup ? cgroupEmpty(stored.cgroup) : { ok: true, empty: true };
       if (finalAlive.length === 0 && cgroupState.ok && cgroupState.empty) {
-        if (!unknown) removeCgroup(stored?.cgroup);
-        return { stopped: !unknown, rootPid, pgid, remaining: [], unknown };
+        // An empty, readable cgroup is the execution boundary's own proof.
+        // `unknown` can be a PID/PGID reused outside it; do not keep capacity
+        // occupied for members that cannot be inside the metered cgroup. A
+        // caller without a cgroup still needs the unknown boundary to block.
+        const boundaryProven = Boolean(stored?.cgroup) && cgroupState.ok && cgroupState.empty;
+        removeCgroup(stored?.cgroup);
+        return { stopped: boundaryProven || !unknown, rootPid, pgid, remaining: [], unknown };
       }
       merged.clear();
       for (const member of finalAlive) merged.set(identityKey(member), member);

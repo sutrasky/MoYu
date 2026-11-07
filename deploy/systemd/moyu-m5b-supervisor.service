@@ -1,0 +1,31 @@
+# Example unit for the isolated M5-B test service. Install only after the
+# repository owner has confirmed the paths, user and database. It is not a
+# production deployment record.
+[Unit]
+Description=MoYu M5-B repository supervisor
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=moyu-m5b
+Group=moyu-m5b
+WorkingDirectory=/opt/moyu/m5b
+EnvironmentFile=/etc/moyu/m5b/supervisor.env
+Slice=moyu-m5b.slice
+# Let the supervisor create instance cgroups inside the delegated subtree.
+Delegate=yes
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/lib/moyu-m5b /run/moyu-m5b
+ExecStart=/opt/moyu/m5b/node_modules/.bin/tsx apps/supervisor/src/main.ts
+Restart=on-failure
+RestartSec=3
+# A start failure must not loop through the whole machine: bounded retries are
+# enforced by the supervisor itself (MAX_START_ATTEMPTS).
+MemoryMax=8G
+
+[Install]
+WantedBy=multi-user.target

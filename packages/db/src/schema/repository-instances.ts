@@ -1,4 +1,5 @@
 import {
+  bigint,
   index,
   integer,
   jsonb,
@@ -60,6 +61,17 @@ export const repositoryInstances = pgTable(
     attemptCount: integer('attempt_count').notNull().default(0),
     errorCode: text('error_code'),
     errorDetail: text('error_detail'),
+    /** Last measured cgroup memory (bytes); null until the first sample. */
+    memoryCurrentBytes: bigint('memory_current_bytes', { mode: 'number' }),
+    memoryPeakBytes: bigint('memory_peak_bytes', { mode: 'number' }),
+    /** Hard per-instance cgroup limit, measured from the cgroup itself. */
+    memoryLimitBytes: bigint('memory_limit_bytes', { mode: 'number' }),
+    /** Raw cgroup `memory.events` counters (oom, oom_kill, high, max). */
+    memoryEvents: jsonb('memory_events').$type<Record<string, number>>().notNull().default({}),
+    /** `ok`, `resource_wait`, `oom`, `over_budget`, `unknown` — measured, never inferred. */
+    resourceState: text('resource_state').notNull().default('unknown'),
+    resourceDetail: text('resource_detail'),
+    resourceCheckedAt: timestamp('resource_checked_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

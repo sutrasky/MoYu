@@ -1,0 +1,19 @@
+date=2026-11-06T12:44:00+08:00
+runtime_build=/opt/moyu-m5b/upstream-build (pinned 6337fc8 + 0001..0023)
+provider=loopback OpenAI-completions at 127.0.0.1:3801, model local-test, dummy LOCAL_TEST_API_KEY
+provider_boundary=synthetic responses only; no production provider, no shared 3082, no real credentials
+observation_1=DSH loaded the profile with the local baseURL/apiKeyEnv and accepted two workspace candidate cards:
+  workspace:dual-20 and workspace:dual-30, both strength=explicit; provider env LOCAL_PROVIDER_TRIGGER_ID=workspace:dual-30
+observation_2=The main Session's tools include orchestrator_route; the first deterministic reply used
+  {trigger_id,kind,title,scope,reason,name} and the tool rejected it with:
+  expected array at decisions; unrecognized trigger_id/kind/title/scope/reason/name
+observation_3=After correcting the reply to {decisions:[{kind,trigger_id,title,worktree_name,acknowledgement}]},
+  the runtime did not emit a ticket/decision event; /bridge/v1/events stayed empty and no Assignment or
+  child process appeared. A subsequent request showed the old tool error plus both candidate cards, but no
+  new tool result, so the deterministic route was not committed.
+side_effect_count=0 tickets, 0 assignments, 0 child processes
+actual_tool_result_after_correction=none (no accepted/refused result recorded; provider request showed only the old shape error)
+failure=local provider interface reached, but the main Session did not complete the route/assessment turn;
+  this is not evidence of real execution or of admission ordering.
+not_covered=two-entry ordering, pause/start race, restart reconciliation, three-repository queueing,
+  full-stack 8 GiB pressure, recovery-clears-error

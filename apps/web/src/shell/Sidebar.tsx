@@ -7,6 +7,7 @@ import {
   formatUpdatedAt,
   repositoryRuntimeLabel,
   taskStateLabel,
+  runtimeResourceLabel,
   waitingForLabel,
 } from '../lib/format';
 import type { ThemeMode } from '../theme/ThemeProvider';
@@ -86,6 +87,7 @@ export function Sidebar({
     repositories.find((repository) => repository.id === selectedRepositoryId) ?? null;
   const runtime = selectedRepository?.runtime ?? null;
   const waiting = waitingForLabel(runtime?.waitingFor);
+  const resource = runtimeResourceLabel(runtime?.resource);
 
   return (
     <aside
@@ -211,6 +213,8 @@ export function Sidebar({
                     : '未知'}
               </span>
               {waiting ? <span>{waiting}</span> : null}
+              {resource ? <span>{resource}</span> : null}
+              {runtime.lease ? <span>执行代次 {runtime.lease.fencingToken}</span> : null}
               {runtime.lastProgressAt ? (
                 <span>最后进展 {formatUpdatedAt(runtime.lastProgressAt)}</span>
               ) : (

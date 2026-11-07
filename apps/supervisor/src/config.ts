@@ -50,6 +50,22 @@ const environmentSchema = z.object({
     .regex(/^[A-Za-z0-9-]+$/)
     .default('m5'),
   MAX_ONLINE: z.coerce.number().int().min(1).max(8).default(2),
+  /** Aggregate memory policy, in MiB unless noted. These are one system-wide budget. */
+  MEMORY_TARGET_MB: z.coerce.number().int().min(256).default(4096),
+  MEMORY_BUDGET_MB: z.coerce.number().int().min(512).default(6144),
+  MEMORY_HARD_LIMIT_MB: z.coerce.number().int().min(512).default(8192),
+  MEMORY_RESERVE_MB: z.coerce.number().int().min(0).default(1024),
+  MEMORY_HYSTERESIS_MB: z.coerce.number().int().min(0).default(256),
+  INSTANCE_MEMORY_MAX_MB: z.coerce.number().int().min(256).default(3072),
+  INSTANCE_MEMORY_HIGH_MB: z.coerce.number().int().min(128).default(2560),
+  MEMORY_PRESSURE_AVG10: z.coerce.number().min(0).max(100).default(10),
+  /** Optional cgroups whose memory belongs to the system aggregate (read-only). */
+  PLATFORM_CGROUP: z.string().min(1).optional(),
+  POSTGRES_CGROUP: z.string().min(1).optional(),
+  /** The single systemd slice with an enforceable MemoryMax for the whole system. */
+  AGGREGATE_CGROUP: z.string().min(1).optional(),
+  RESOURCE_SAMPLE_INTERVAL_MS: z.coerce.number().int().min(1000).max(600_000).default(15_000),
+  MAX_START_ATTEMPTS: z.coerce.number().int().min(1).max(20).default(3),
   TICK_INTERVAL_MS: z.coerce.number().int().min(250).max(60_000).default(2000),
   START_TIMEOUT_MS: z.coerce.number().int().min(5000).max(600_000).default(120_000),
   STOP_TIMEOUT_MS: z.coerce.number().int().min(100).max(120_000).default(30_000),
@@ -91,6 +107,19 @@ export interface SupervisorConfig {
   profileTemplateDir?: string;
   profilePrefix: string;
   maxOnline: number;
+  memoryTargetMb: number;
+  memoryBudgetMb: number;
+  memoryHardLimitMb: number;
+  memoryReserveMb: number;
+  memoryHysteresisMb: number;
+  instanceMemoryMaxMb: number;
+  instanceMemoryHighMb: number;
+  memoryPressureAvg10: number;
+  platformCgroup?: string;
+  postgresCgroup?: string;
+  aggregateCgroup?: string;
+  resourceSampleIntervalMs: number;
+  maxStartAttempts: number;
   tickIntervalMs: number;
   startTimeoutMs: number;
   stopTimeoutMs: number;
@@ -157,6 +186,19 @@ export function loadSupervisorConfig(
       : {}),
     profilePrefix: data.PROFILE_PREFIX,
     maxOnline: data.MAX_ONLINE,
+    memoryTargetMb: data.MEMORY_TARGET_MB,
+    memoryBudgetMb: data.MEMORY_BUDGET_MB,
+    memoryHardLimitMb: data.MEMORY_HARD_LIMIT_MB,
+    memoryReserveMb: data.MEMORY_RESERVE_MB,
+    memoryHysteresisMb: data.MEMORY_HYSTERESIS_MB,
+    instanceMemoryMaxMb: data.INSTANCE_MEMORY_MAX_MB,
+    instanceMemoryHighMb: data.INSTANCE_MEMORY_HIGH_MB,
+    memoryPressureAvg10: data.MEMORY_PRESSURE_AVG10,
+    ...(data.PLATFORM_CGROUP ? { platformCgroup: resolve(data.PLATFORM_CGROUP) } : {}),
+    ...(data.POSTGRES_CGROUP ? { postgresCgroup: resolve(data.POSTGRES_CGROUP) } : {}),
+    ...(data.AGGREGATE_CGROUP ? { aggregateCgroup: resolve(data.AGGREGATE_CGROUP) } : {}),
+    resourceSampleIntervalMs: data.RESOURCE_SAMPLE_INTERVAL_MS,
+    maxStartAttempts: data.MAX_START_ATTEMPTS,
     tickIntervalMs: data.TICK_INTERVAL_MS,
     startTimeoutMs: data.START_TIMEOUT_MS,
     stopTimeoutMs: data.STOP_TIMEOUT_MS,

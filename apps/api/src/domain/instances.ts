@@ -1,11 +1,19 @@
-import { desc, eq, max } from 'drizzle-orm';
+import { and, desc, eq, max } from 'drizzle-orm';
 
 import type {
   RepositoryRuntime,
   RepositoryRuntimeAction,
   RuntimeInstanceState,
+  RuntimeLeaseProjection,
+  RuntimeResource,
 } from '@moyu/contracts';
-import { repositoryInstances, taskLinks, type Database, type Repository } from '@moyu/db';
+import {
+  repositoryInstances,
+  runtimeLeases,
+  taskLinks,
+  type Database,
+  type Repository,
+} from '@moyu/db';
 
 import type { ApiConfig } from '../config';
 import { createSupervisorClient, type SupervisorInstance } from '../runtime/supervisor';
@@ -54,6 +62,9 @@ function actionsFor(
       if (reasonCode === 'capacity_wait') {
         return [wake(false, '已进入唤醒队列，等待在线名额'), sleep(false, '实例不在线')];
       }
+      if (reasonCode === 'resource_wait' || reasonCode === 'resource_over_budget') {
+        return [wake(false, '等待实测内存余量恢复'), sleep(false, '实例不在线')];
+      }
       return [wake(true, null), sleep(false, '实例不在线')];
     case 'starting':
       return [wake(false, '实例正在启动'), sleep(true, null)];
@@ -95,6 +106,18 @@ function reasonFor(
         return {
           reasonCode: 'capacity_wait',
           reason: '已在唤醒队列中：两个在线实例名额都在使用，释放或最久无交互淘汰后启动。',
+          listener: 'paused',
+        };
+      }
+      if (
+        instance.reasonCode === 'resource_wait' ||
+        instance.reasonCode === 'resource_over_budget'
+      ) {
+        return {
+          reasonCode: instance.reasonCode,
+          reason: detail
+            ? `等待内存余量：${detail}。不会启动新实例，也不会为腾出内存杀死正在工作的任务。`
+            : '内存余量不足，暂不启动新实例；等待已实测的余量恢复。',
           listener: 'paused',
         };
       }
@@ -145,6 +168,15 @@ function reasonFor(
         listener: 'paused',
       };
     case 'fault':
+      if (instance.reasonCode === 'retry_exhausted') {
+        return {
+          reasonCode: 'retry_exhausted',
+          reason: detail
+            ? `自动重试已用尽：${detail}`
+            : '自动重试已用尽；需要你确认后手动重试启动。',
+          listener: 'unknown',
+        };
+      }
       return {
         reasonCode: instance.reasonCode || 'fault',
         reason: detail
@@ -155,6 +187,56 @@ function reasonFor(
     default:
       return { reasonCode: 'unknown', reason: '实例状态未知。', listener: 'unknown' };
   }
+}
+
+function resourceForRow(
+  row:
+    | {
+        resourceState: string;
+        resourceDetail: string | null;
+        memoryCurrentBytes: number | null;
+        memoryPeakBytes: number | null;
+        memoryLimitBytes: number | null;
+        memoryEvents: Record<string, number>;
+        resourceCheckedAt: Date | null;
+      }
+    | undefined,
+): RuntimeResource | null {
+  if (!row) return null;
+  if (!row.resourceCheckedAt && row.memoryCurrentBytes == null) return null;
+  const allowed = ['ok', 'resource_wait', 'over_budget', 'oom', 'unknown'] as const;
+  const state = allowed.includes(row.resourceState as (typeof allowed)[number])
+    ? (row.resourceState as (typeof allowed)[number])
+    : 'unknown';
+  return {
+    state,
+    detail: safeDetail(row.resourceDetail),
+    memoryCurrentBytes: row.memoryCurrentBytes,
+    memoryPeakBytes: row.memoryPeakBytes,
+    memoryLimitBytes: row.memoryLimitBytes,
+    oomKillCount: row.memoryEvents?.oom_kill ?? 0,
+    checkedAt: iso(row.resourceCheckedAt),
+  };
+}
+
+async function leaseFor(
+  database: Database,
+  repositoryId: string,
+): Promise<RuntimeLeaseProjection | null> {
+  const [row] = await database
+    .select()
+    .from(runtimeLeases)
+    .where(and(eq(runtimeLeases.repositoryId, repositoryId), eq(runtimeLeases.state, 'active')))
+    .orderBy(desc(runtimeLeases.acquiredAt))
+    .limit(1);
+  if (!row) return null;
+  return {
+    fencingToken: String(row.fencingToken),
+    recoveryState: row.recoveryState,
+    waitingFor: row.waitingFor,
+    detail: safeDetail(row.lastError ?? row.recoveryReason),
+    stopProvenAt: iso(row.stopProvenAt),
+  };
 }
 
 async function loadInstance(
@@ -246,13 +328,29 @@ export async function projectRuntime(
   repository: Repository,
 ): Promise<RepositoryRuntime> {
   const instance = await loadInstance(database, config, repository);
+  const [stateRow] = await database
+    .select()
+    .from(repositoryInstances)
+    .where(eq(repositoryInstances.repositoryId, repository.id))
+    .limit(1);
+  const lease = await leaseFor(database, repository.id);
   const taskFacts = await facts(database, repository.id);
   const reason = reasonFor(instance);
-  const executionSlot = taskFacts.executionSlot;
+  let executionSlot = taskFacts.executionSlot;
   let waitingFor = instance.waitingFor;
   if (taskFacts.waitingInput > 0) waitingFor = 'owner_input';
   else if (taskFacts.awaitingReview > 0) waitingFor = 'review';
   else if (instance.reasonCode === 'capacity_wait') waitingFor = 'capacity';
+  else if (
+    instance.reasonCode === 'resource_wait' ||
+    instance.reasonCode === 'resource_over_budget'
+  ) {
+    waitingFor = 'memory';
+  }
+  if (lease && ['required', 'verifying', 'blocked'].includes(lease.recoveryState)) {
+    executionSlot = 'unknown';
+    waitingFor = lease.waitingFor ?? 'execution_stop_proof';
+  }
   return {
     state: instance.state,
     desiredState: instance.desiredState,
@@ -267,6 +365,8 @@ export async function projectRuntime(
     lastStoppedAt: iso(instance.lastStoppedAt),
     lastHealthAt: iso(instance.lastHealthAt),
     actions: actionsFor(instance.state, instance.reasonCode, executionSlot),
+    resource: resourceForRow(stateRow),
+    lease,
   };
 }
 

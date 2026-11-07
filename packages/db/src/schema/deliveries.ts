@@ -1,4 +1,5 @@
 import {
+  bigint,
   check,
   index,
   integer,
@@ -13,6 +14,7 @@ import { sql } from 'drizzle-orm';
 
 import { deliveryState } from './enums';
 import { messages } from './messages';
+import { runtimeLeases } from './runtime-leases';
 
 /**
  * Durable outbox entry for a message. It is written in the same transaction as
@@ -32,6 +34,11 @@ export const deliveries = pgTable(
     leaseExpiresAt: timestamp('lease_expires_at', { withTimezone: true }),
     /** The stable runtime Trigger id used for the delivery; retries reuse it. */
     upstreamTriggerId: text('upstream_trigger_id'),
+    /** Execution lease that admitted the trigger launch/reply, and its fencing generation. */
+    runtimeLeaseId: uuid('runtime_lease_id').references(() => runtimeLeases.id, {
+      onDelete: 'set null',
+    }),
+    fencingToken: bigint('fencing_token', { mode: 'bigint' }),
     /** When the runtime recorded the Trigger (executor received it). Never set by an HTTP 202 alone. */
     deliveredAt: timestamp('delivered_at', { withTimezone: true }),
     /** When the runtime handed the message to the worker Session inbox. */

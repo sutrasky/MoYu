@@ -1,0 +1,11 @@
+date=2026-11-06T18:45:00+08:00
+probe=scripts/m5b/launcher-cgroup-check.sh
+slice=m5b-launcher-1016970.slice (probe memory.max=268435456)
+cgroup=/m5b-launcher-819565.slice/probe
+launcher=IFS= read -r go <&3 || exit 126; [ "$go" = go ] || exit 127; exec "$@"
+observed_parent=1016982 cgroup=/m5b-launcher-1016970.slice/probe
+observed_first_child=1016983 cgroup=/m5b-launcher-1016970.slice/probe
+probe_memory_max=268435456
+marker=created exactly once
+after_cgroup_kill=1 written to cgroup.kill; populated=0 within bound; cgroup.procs empty
+host=shared 3082 and production credentials untouched; no memory hog, bounded slice and immediate kill

@@ -13,6 +13,14 @@ const wakeSchema = z
   .object({
     priority: z.number().int().min(1).max(100).optional(),
     reason: z.enum(['new_task', 'reply', 'manual', 'retry']).optional(),
+    execution: z
+      .object({
+        ticketId: z.string().min(1).max(200),
+        assignmentId: z.string().min(1).max(200),
+        leaseId: z.string().min(1).max(200),
+        fencingToken: z.string().min(1).max(200),
+      })
+      .optional(),
   })
   .strict();
 
@@ -60,13 +68,15 @@ export function buildSupervisorServer(options: {
     return { data: instance };
   });
 
-  app.post('/control/v1/instances/:repositoryId/wake', async (request) => {
+  app.post('/control/v1/instances/:repositoryId/wake', async (request, reply) => {
     const repositoryId = repositoryIdOf(request);
     const body = wakeSchema.parse(request.body ?? {});
     const result = await manager.wake(repositoryId, {
       priority: body.priority ?? (body.reason === 'reply' ? 10 : 20),
       reason: body.reason ?? 'manual',
+      ...(body.execution ? { execution: body.execution } : {}),
     });
+    if (!result.accepted) return reply.code(409).send({ data: result });
     return { data: result };
   });
 

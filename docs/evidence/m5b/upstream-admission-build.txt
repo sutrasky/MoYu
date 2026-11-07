@@ -1,0 +1,15 @@
+date=2026-11-07T16:46:00+08:00
+base_upstream=6337fc823ce20251c8de8085948165c81aaa701e
+patches=0001..0023
+worktree=/root/src/upstream/m5b-admission-work
+build=/root/src/upstream/m5b-admission-build21
+build_exit=0
+package_json_sha256=d428e669805ea1dfb6a4900bddbffe3cafb8f06a0b1eb139266c2b2f6b94b021
+cordis_patch_sha256=c91fab94d3a27c7068b5f5391907fb4d69342112ad50f987fdfed9985c2c7905
+lib_index_sha256=64ce5c5aeb6d0671a195ee5aad66c941a641c29919f1a7603fe64cd0b288df6f
+lib_workspace_watch_sha256=8d3ec8c2956977cc8158ea974f4ce7201667bd057994e6f217c276609c4aa90d
+typecheck=pass
+upstream_tests=1315 passed / 1 failed (known optional Feishu test failure, see integrations/superagent/README.md)
+admission_tests=tests/admission.spec.ts 7, tests/stop-proof.spec.ts 4, tests/stop-proof-red.spec.ts 1, bridge.spec.ts admit-reserved red, pause.spec.ts 17 (one stop-rejection branch with a generic Error, not a real EPERM/replay) passed (missing/invalid/stale retry, repository fence for delayed Trigger, same-token second Ticket held, wake-without-admission held, stale-generation delivery held and replaced once, pause-before-admit)
+platform_dispatcher_tests=see docs/M5-B-VERIFICATION.md
+core_fix=retry/start/admit require a decimal admission; repository-wide fence is persisted in KV and bound to one lease+Ticket; delayed/same-token second Ticket and wake without admission are held; pause before admit creates no Assignment

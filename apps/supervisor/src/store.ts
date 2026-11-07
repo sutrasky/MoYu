@@ -34,6 +34,13 @@ export interface InstanceRow {
   attemptCount: number;
   errorCode: string | null;
   errorDetail: string | null;
+  memoryCurrentBytes: number | null;
+  memoryPeakBytes: number | null;
+  memoryLimitBytes: number | null;
+  memoryEvents: Record<string, number>;
+  resourceState: string;
+  resourceDetail: string | null;
+  resourceCheckedAt: Date | null;
   updatedAt: Date;
 }
 
@@ -51,7 +58,11 @@ const INSTANCE_COLUMNS = `
   i.last_progress_at as "lastProgressAt", i.last_started_at as "lastStartedAt",
   i.last_stopped_at as "lastStoppedAt", i.last_health_at as "lastHealthAt",
   i.pid, i.port, i.bridge_port as "bridgePort", i.profile, i.ownership, i.attempt_count as "attemptCount", i.error_code as "errorCode",
-  i.error_detail as "errorDetail", i.updated_at as "updatedAt"
+  i.error_detail as "errorDetail",
+  i.memory_current_bytes as "memoryCurrentBytes", i.memory_peak_bytes as "memoryPeakBytes",
+  i.memory_limit_bytes as "memoryLimitBytes", i.memory_events as "memoryEvents",
+  i.resource_state as "resourceState", i.resource_detail as "resourceDetail",
+  i.resource_checked_at as "resourceCheckedAt", i.updated_at as "updatedAt"
 `;
 
 /** Durable supervisor state. The platform API reads the same rows. */
@@ -168,6 +179,13 @@ export class SupervisorStore {
       attemptCount: number;
       errorCode: string | null;
       errorDetail: string | null;
+      memoryCurrentBytes: number | null;
+      memoryPeakBytes: number | null;
+      memoryLimitBytes: number | null;
+      memoryEvents: Record<string, number>;
+      resourceState: string;
+      resourceDetail: string | null;
+      resourceCheckedAt: Date | null;
     }>,
   ): Promise<void> {
     const column: Record<string, string> = {
@@ -191,6 +209,13 @@ export class SupervisorStore {
       attemptCount: 'attempt_count',
       errorCode: 'error_code',
       errorDetail: 'error_detail',
+      memoryCurrentBytes: 'memory_current_bytes',
+      memoryPeakBytes: 'memory_peak_bytes',
+      memoryLimitBytes: 'memory_limit_bytes',
+      memoryEvents: 'memory_events',
+      resourceState: 'resource_state',
+      resourceDetail: 'resource_detail',
+      resourceCheckedAt: 'resource_checked_at',
     };
     const entries = Object.entries(fields).filter(([, value]) => value !== undefined);
     if (entries.length === 0) return;
@@ -199,6 +224,38 @@ export class SupervisorStore {
       `update repository_instances set ${assignments.join(', ')}, updated_at = now()
         where repository_id = $1`,
       [repositoryId, ...entries.map(([, value]) => value)],
+    );
+  }
+
+  async recordResourceSample(input: {
+    scope: 'host' | 'aggregate' | 'platform' | 'instance';
+    repositoryId?: string | null;
+    memoryCurrentBytes?: number | null;
+    memoryPeakBytes?: number | null;
+    memoryLimitBytes?: number | null;
+    memoryEvents?: Record<string, number>;
+    oomKillCount?: number;
+    hostMemAvailableBytes?: number | null;
+    pressure?: Record<string, unknown>;
+    detail?: Record<string, unknown>;
+  }): Promise<void> {
+    await this.pool.query(
+      `insert into runtime_resource_samples
+         (scope, repository_id, memory_current_bytes, memory_peak_bytes, memory_limit_bytes,
+          memory_events, oom_kill_count, host_mem_available_bytes, pressure, detail)
+       values ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9::jsonb,$10::jsonb)`,
+      [
+        input.scope,
+        input.repositoryId ?? null,
+        input.memoryCurrentBytes ?? null,
+        input.memoryPeakBytes ?? null,
+        input.memoryLimitBytes ?? null,
+        JSON.stringify(input.memoryEvents ?? {}),
+        input.oomKillCount ?? 0,
+        input.hostMemAvailableBytes ?? null,
+        JSON.stringify(input.pressure ?? {}),
+        JSON.stringify(input.detail ?? {}),
+      ],
     );
   }
 

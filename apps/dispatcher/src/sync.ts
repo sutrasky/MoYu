@@ -5,10 +5,15 @@ import { taskStateSchema, type ArtifactSummary } from '@moyu/contracts';
 import type { RuntimeBridgeClient, BridgeEvent } from '@moyu/runtime-client';
 
 import type { DispatcherLogger } from './logger';
-import type { RepositoryBinding } from './runtime';
+import { bridgeErrorMessage, type RepositoryBinding } from './runtime';
+import { claimExecution, reconcileExecutionClaimOn } from './reservations';
 import { appendEventSql } from './events-sql';
 import { endedState, stateFromSnapshot, TASK_COLUMNS, taskSummary, type TaskRow } from './tasks';
 import { pauseEvidenceProblem, pauseEvidenceProven } from './pause-evidence';
+import { acquireExecutionLeaseOn } from './leases';
+
+/** Last projection branch per Bridge event, for lifecycle diagnostics/tests. */
+export const projectionBranches = new Map<string, string>();
 
 interface ProjectedTask {
   task: TaskRow;
@@ -80,6 +85,10 @@ async function emit(
   });
 }
 
+function traceBranch(eventId: string, branch: string): void {
+  projectionBranches.set(eventId, branch);
+}
+
 async function applyTaskEvent(
   client: pg.PoolClient,
   repository: RepositoryBinding,
@@ -89,6 +98,7 @@ async function applyTaskEvent(
   const data = asRecord(event.data);
   const ticketId = asString(data.ticketId);
   if (!ticketId) {
+    traceBranch(event.id, 'return-no-ticket-id');
     logger.warn(
       { event: 'bridge.event_invalid', bridgeEvent: event.id },
       'ticket event had no ticketId',
@@ -100,6 +110,7 @@ async function applyTaskEvent(
     ? await taskByConversation(client, conversationId, repository.id)
     : await taskByTicket(client, ticketId, repository.id);
   if (!existing) {
+    traceBranch(event.id, 'return-task-missing');
     // The run may not have linked the ticket yet; a later ticket.linked event
     // carries the conversation. Dropping the projection is safer than
     // inventing a task row.
@@ -166,22 +177,103 @@ async function applyTaskEvent(
 
   if (event.type === 'ticket.state_changed') {
     const question = asString(data.question);
+    const assignmentId = asString(data.assignmentId);
+    const leaseId = asString(data.leaseId);
+    const fencingToken = asString(data.fencingToken);
+    if (assignmentId && leaseId && fencingToken) {
+      const active = await client.query<{ id: string; fencing_token: string }>(
+        `select id, fencing_token from runtime_leases
+          where repository_id = $1 and state = 'active'
+          order by fencing_token desc limit 1`,
+        [repository.id],
+      );
+      const activeLease = active.rows[0];
+      const currentGeneration =
+        activeLease !== undefined &&
+        activeLease.id === leaseId &&
+        String(activeLease.fencing_token) === fencingToken;
+      const reservation = await client.query<{
+        assignment_id: string;
+        lease_id: string;
+        fencing_token: string;
+        state: string;
+      }>(
+        `select assignment_id, lease_id, fencing_token, state
+           from execution_reservations
+          where repository_id = $1 and request_key = $2`,
+        [repository.id, `admit:${existing.id}`],
+      );
+      const reserved = reservation.rows[0];
+      if (
+        !currentGeneration &&
+        reserved &&
+        (reserved.assignment_id !== assignmentId ||
+          reserved.lease_id !== leaseId ||
+          String(reserved.fencing_token) !== fencingToken)
+      ) {
+        // A late event from another generation must not project queued/running
+        // over a stopped task or advance its state; keep the projection and
+        // record the mismatch, while still consuming the event cursor.
+        await client.query(
+          `update task_links
+              set stop_evidence = coalesce(stop_evidence, '{}'::jsonb) || $2::jsonb,
+                  last_event_seq = greatest(coalesce(last_event_seq, 0), $3),
+                  version = version + 1,
+                  updated_at = now()
+            where id = $1`,
+          [existing.id, JSON.stringify({ admissionProjection: 'stale_generation' }), event.seq],
+        );
+        traceBranch(event.id, 'return-stale-generation');
+        return;
+      }
+    }
+    const target = stateOf(data.state);
+    if (
+      (existing.state === 'stopped' || existing.state === 'paused') &&
+      (target === 'queued' || target === 'running')
+    ) {
+      // A projected state event cannot reactivate a stopped/paused task, even
+      // when its generation matches or it carries no identity at all.
+      await client.query(
+        `update task_links
+            set stop_evidence = coalesce(stop_evidence, '{}'::jsonb) || $2::jsonb,
+                last_event_seq = greatest(coalesce(last_event_seq, 0), $3),
+                version = version + 1,
+                updated_at = now()
+          where id = $1`,
+        [existing.id, JSON.stringify({ admissionProjection: 'stale_state' }), event.seq],
+      );
+      return;
+    }
     const updated = await client.query(
       `update task_links
-          set state = $2,
+          set state = case when state in ('stopped', 'stopping') then state else $2 end,
               question = $3::text,
               question_message_id = case when $3::text is null then null else question_message_id end,
               last_event_seq = greatest(coalesce(last_event_seq, 0), $4),
               version = version + 1,
               updated_at = now()
         where id = $1 and (last_event_seq is null or last_event_seq < $4)`,
-      [existing.id, stateOf(data.state), question, event.seq],
+      [existing.id, target, question, event.seq],
     );
     if ((updated.rowCount ?? 0) === 0) {
+      traceBranch(event.id, 'return-stale-cursor');
       return;
     }
+    traceBranch(event.id, 'projected');
     next = await taskByTicket(client, ticketId, repository.id);
     if (next) {
+      if (next.state === 'queued' || next.state === 'running') {
+        await reconcileExecutionClaimOn(
+          client,
+          repository.id,
+          `admit:${next.id}`,
+          ticketId,
+          asString(data.assignmentId),
+          asString(data.leaseId),
+          asString(data.fencingToken),
+        );
+      }
       await emit(client, repository, event, 'task.state_changed', next.conversationId, next.id, {
         task: taskSummary(next),
       });
@@ -878,9 +970,75 @@ async function applyImportedEvent(
     return undefined;
   }
 
+  // A GitHub @ in an M5-B runtime is held as pending_admission until the
+  // platform admits it; an older runtime has already started a worker, so a
+  // refused lease there still needs the durable pause path. Bind the task to
+  // the repository execution lease and never create execution beside another
+  // admitted generation.
+  const admissionRequired = data.admissionRequired === true;
+  const admission = await acquireExecutionLeaseOn(
+    client,
+    repository.id,
+    { taskId: task.id, reason: 'github import' },
+    3_600_000,
+  );
+  let admittedTask = task;
+  if (!admission.lease) {
+    if (admissionRequired) {
+      const pending = await client.query<TaskRow>(
+        `update task_links
+            set state = case when state = 'pending_admission' then state else 'pending_admission' end,
+                stop_evidence = $2::jsonb, version = version + 1, updated_at = now()
+          where id = $1
+          returning ${TASK_COLUMNS.replaceAll('t.', 'task_links.')}`,
+        [
+          task.id,
+          JSON.stringify({
+            admissionRefused: admission.refused,
+            waitingFor: admission.waitingFor,
+            reason: admission.detail,
+          }),
+        ],
+      );
+      admittedTask = pending.rows[0] ?? task;
+    } else if (!['blocked', 'stopped', 'completed', 'closed_unmerged'].includes(task.state)) {
+      const blocked = await client.query<TaskRow>(
+        `update task_links
+            set state = 'blocked', stop_evidence = $2::jsonb,
+                version = version + 1, updated_at = now()
+          where id = $1
+          returning ${TASK_COLUMNS.replaceAll('t.', 'task_links.')}`,
+        [
+          task.id,
+          JSON.stringify({
+            admissionRefused: admission.refused,
+            waitingFor: admission.waitingFor,
+            reason: admission.detail,
+          }),
+        ],
+      );
+      admittedTask = blocked.rows[0] ?? task;
+      await client.query(
+        `insert into task_operations
+           (task_id, repository_id, kind, client_command_id, request_fingerprint, evidence)
+         values ($1, $2, 'pause', $3, 'import-admission', $4::jsonb)
+         on conflict do nothing`,
+        [
+          task.id,
+          repository.id,
+          `import-admission:${task.id}`,
+          JSON.stringify({
+            reason: 'github import was refused an execution lease',
+            leaseRefused: admission.refused,
+          }),
+        ],
+      );
+    }
+  }
+
   if (insertedTask) {
     await emit(client, repository, event, 'task.linked', conversation.id, task.id, {
-      task: taskSummary(task),
+      task: taskSummary(admittedTask),
     });
   }
 
@@ -972,6 +1130,138 @@ export async function applyEvent(
   }
 }
 
+/** Rotates the recovery pass per repository; in-process and wrapped on restart. */
+const recoveryCursors = new Map<string, string>();
+
+/**
+ * Historical identity recovery: a queued/running task whose reservation is
+ * still reserved may predate identity fields on state events. Confirm the
+ * Bridge's authoritative snapshot (repository, Ticket, Assignment, state)
+ * before claiming; lease/fence are re-checked by claimExecution. An unclear
+ * snapshot leaves the reservation reserved and records why.
+ */
+export async function recoverReservedTasks(
+  pool: pg.Pool,
+  repository: RepositoryBinding,
+  bridge: RuntimeBridgeClient,
+  logger: DispatcherLogger,
+): Promise<void> {
+  const load = async (cursor: string | undefined) =>
+    pool.query<{
+      id: string;
+      upstream_ticket_id: string | null;
+      assignment_id: string;
+      lease_id: string;
+      fencing_token: string;
+    }>(
+      `select t.id, t.upstream_ticket_id, r.assignment_id, r.lease_id, r.fencing_token
+       from task_links t
+       join execution_reservations r
+         on r.repository_id = t.repository_id and r.request_key = 'admit:' || t.id
+      where t.repository_id = $1 and t.state in ('queued', 'running') and r.state = 'reserved'
+        and ($2::uuid is null or t.id > $2::uuid)
+      order by t.id
+      limit 32`,
+      [repository.id, cursor ?? null],
+    );
+  const cursor = recoveryCursors.get(repository.id);
+  let rows = await load(cursor);
+  if (rows.rows.length === 0 && cursor) {
+    recoveryCursors.delete(repository.id);
+    rows = await load(undefined);
+  }
+  const last = rows.rows.at(-1);
+  if (last) recoveryCursors.set(repository.id, last.id);
+  for (const row of rows.rows) {
+    if (!row.upstream_ticket_id) continue;
+    let snapshot: Awaited<ReturnType<RuntimeBridgeClient['ticket']>>;
+    try {
+      snapshot = await bridge.ticket(row.upstream_ticket_id);
+    } catch (error) {
+      logger.warn(
+        {
+          event: 'admission.recovery_unavailable',
+          taskId: row.id,
+          error: bridgeErrorMessage(error),
+        },
+        'could not read the authoritative Bridge snapshot; keeping the reservation',
+      );
+      continue;
+    }
+    const repositoryName = snapshot.base?.repository;
+    if (
+      snapshot.ticketId !== row.upstream_ticket_id ||
+      snapshot.assignmentId !== row.assignment_id ||
+      snapshot.admission?.leaseId !== row.lease_id ||
+      String(snapshot.admission?.fencingToken) !== String(row.fencing_token) ||
+      // GitHub-imported tickets have no frozen workspace spec, so the snapshot
+      // base (and repository) is null; the connection already binds the repo.
+      (repositoryName !== undefined &&
+        repositoryName !== null &&
+        repositoryName !== repository.fullName) ||
+      (snapshot.state !== 'queued' && snapshot.state !== 'running')
+    ) {
+      await pool.query(
+        `update task_links
+            set stop_evidence = coalesce(stop_evidence, '{}'::jsonb) || $2::jsonb,
+                version = version + 1, updated_at = now()
+          where id = $1 and state in ('queued', 'running')
+            and coalesce(stop_evidence->>'admissionRecovery', '') is distinct from 'snapshot_mismatch'`,
+        [row.id, JSON.stringify({ admissionRecovery: 'snapshot_mismatch' })],
+      );
+      continue;
+    }
+    try {
+      const claimed = await claimExecution(pool, {
+        repositoryId: repository.id,
+        requestKey: `admit:${row.id}`,
+        taskId: row.id,
+        ticketId: row.upstream_ticket_id,
+        assignmentId: row.assignment_id,
+        leaseId: row.lease_id,
+        fencingToken: String(row.fencing_token),
+      });
+      if (!claimed.claimed) {
+        logger.warn(
+          { event: 'admission.recovery_not_claimable', taskId: row.id },
+          'snapshot matched but the reservation was already claimed',
+        );
+      } else {
+        await pool.query(
+          `update task_links
+              set stop_evidence = stop_evidence - 'admissionRecovery' - 'admissionRecoveryError',
+                  version = version + 1, updated_at = now()
+            where id = $1 and state in ('queued', 'running')`,
+          [row.id],
+        );
+      }
+    } catch (error) {
+      await pool.query(
+        `update task_links
+            set stop_evidence = coalesce(stop_evidence, '{}'::jsonb) || $2::jsonb,
+                version = version + 1, updated_at = now()
+          where id = $1 and state in ('queued', 'running')
+            and (
+              coalesce(stop_evidence->>'admissionRecovery', '') is distinct from 'generation_mismatch'
+              or coalesce(stop_evidence->>'admissionRecoveryError', '') is distinct from $3
+            )`,
+        [
+          row.id,
+          JSON.stringify({
+            admissionRecovery: 'generation_mismatch',
+            admissionRecoveryError: bridgeErrorMessage(error),
+          }),
+          bridgeErrorMessage(error),
+        ],
+      );
+      logger.warn(
+        { event: 'admission.recovery_refused', taskId: row.id, error: bridgeErrorMessage(error) },
+        'kept the reservation because the current generation did not match',
+      );
+    }
+  }
+}
+
 /** Pulls one page of Bridge events and applies them with the cursor in one transaction. */
 export async function syncOnce(
   pool: pg.Pool,
@@ -989,6 +1279,7 @@ export async function syncOnce(
   );
   const cursor = BigInt(cursorResult.rows[0]?.cursor ?? '0');
   const page = await bridge.events(cursor, 100);
+  await recoverReservedTasks(pool, repository, bridge, logger);
   if (page.events.length === 0) {
     return false;
   }

@@ -6,6 +6,7 @@ import { createPool } from '@moyu/db';
 import type { RuntimeBridgeClient } from '@moyu/runtime-client';
 
 import type { DispatcherConfig } from './config';
+import { admitImportedOnce } from './admissions';
 import { deliverOnce } from './delivery';
 import { createConsoleLogger, type DispatcherLogger } from './logger';
 import { maintainLeases, operationsOnce, reconcileTasks } from './operations';
@@ -72,8 +73,22 @@ async function runRepositoryWorker(
     return;
   }
 
+  let admissionSupported = false;
+  try {
+    const capabilities = await bridge.capabilities();
+    admissionSupported = capabilities.capabilities.admission === true;
+  } catch (error) {
+    logger.warn(
+      {
+        event: 'dispatcher.capabilities_unavailable',
+        repository: repository.fullName,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      'runtime capabilities are unknown; execution admission stays on the platform control plane',
+    );
+  }
   logger.info(
-    { event: 'dispatcher.repository', repository: repository.fullName },
+    { event: 'dispatcher.repository', repository: repository.fullName, admissionSupported },
     'dispatching for repository runtime',
   );
 
@@ -94,18 +109,21 @@ async function runRepositoryWorker(
 
   await Promise.allSettled([
     runLoop('delivery', config.deliveryIntervalMs, signal, logger, () =>
-      deliverOnce(pool, config, repository, bridge, logger),
+      deliverOnce(pool, config, repository, bridge, logger, admissionSupported),
     ),
     runLoop('event_sync', config.eventSyncIntervalMs, signal, logger, () =>
       syncOnce(pool, repository, bridge, logger),
     ),
     runLoop('operations', config.operationIntervalMs, signal, logger, () =>
-      operationsOnce(pool, config, repository, bridge, logger),
+      operationsOnce(pool, config, repository, bridge, logger, admissionSupported),
     ),
     runLoop('leases', 5000, signal, logger, async () => {
-      await maintainLeases(pool, repository, config.operationLeaseTtlMs);
+      await maintainLeases(pool, config, repository, bridge, logger);
       return false;
     }),
+    runLoop('admissions', 2000, signal, logger, () =>
+      admitImportedOnce(pool, config, repository, bridge, admissionSupported, logger),
+    ),
     runLoop('reports', config.reportCaptureIntervalMs, signal, logger, () =>
       captureReportsOnce(pool, repository, bridge, logger),
     ),

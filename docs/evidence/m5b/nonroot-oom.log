@@ -1,0 +1,17 @@
+date=2026-11-06T11:09:04+08:00
+slice=m5bprobe700863.slice
+host_mem_available_before_kb=14327384
+Running as unit: m5bprobe700863-anchor.service; invocation ID: 57e135b31a6f4bdcb7fdadc9ea1118a5
+slice_control_group=/m5bprobe700863.slice
+slice_memory_max=8589934592
+slice_memory_high=6442450944
+anchor_pid=700872 anchor_cgroup=/m5bprobe700863.slice/m5bprobe700863-anchor.service
+Running as unit: m5bprobe700863-hog.service; invocation ID: 25e46a2b65cb4c6ba1e4c30781bd5576
+hog_control_group=/m5bprobe700863.slice/m5bprobe700863-hog.service
+hog_result=oom-kill
+hog_oom_kill=1
+hog_memory_max=268435456
+hog_memory_peak=268435456
+hog_memory_events=low 0 high 0 max 35 oom 1 oom_kill 1 oom_group_kill 0 
+host_mem_available_after_kb=14080328
+PASS

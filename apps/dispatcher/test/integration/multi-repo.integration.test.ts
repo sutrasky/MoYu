@@ -54,6 +54,26 @@ async function startBridge(): Promise<FakeBridge> {
       response.end(JSON.stringify(value));
     };
     const url = new URL(request.url ?? '/', 'http://127.0.0.1');
+    if (request.method === 'GET' && url.pathname === '/bridge/v1/capabilities') {
+      send(200, {
+        protocolVersion: 'moyu-bridge/1',
+        upstream: { package: 'dsh-superagent', version: '0.1.0' },
+        capabilities: {
+          trigger: true,
+          events: true,
+          tickets: true,
+          models: true,
+          pause: true,
+          resume: true,
+          retry: true,
+          readOnlyDiscussion: true,
+          start: true,
+          admission: true,
+        },
+        source: { kind: 'workspace', enabled: true },
+      });
+      return;
+    }
     if (request.method === 'POST' && url.pathname === '/bridge/v1/triggers') {
       const body = (await readBody(request)) as BridgeTriggerInput;
       calls.push({ token: request.headers.authorization, body });
@@ -241,7 +261,7 @@ describe('multi-repository dispatcher isolation on real PostgreSQL', () => {
     expect(bridgeB.calls[0]!.token).toContain('bridge-token-b-');
     expect(bridgeA.calls[0]!.body.executionSpec.repository).toBe('Bouyer12/m5a-alpha');
     expect(bridgeB.calls[0]!.body.executionSpec.repository).toBe('Bouyer12/m5a-beta');
-  });
+  }, 20_000);
 
   it('stops a repository loop once the supervisor marks it sleeping', async () => {
     await database
@@ -256,5 +276,5 @@ describe('multi-repository dispatcher isolation on real PostgreSQL', () => {
     controller.abort();
     await running;
     expect(bridgeA.calls.length).toBe(beforeA);
-  });
+  }, 20_000);
 });

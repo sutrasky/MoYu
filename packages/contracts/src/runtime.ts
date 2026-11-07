@@ -54,6 +54,8 @@ export const bridgeCapabilitiesSchema = z.object({
     start: z.boolean().optional(),
     /** M4-UX: the runtime can list repository branches; absent on runtimes without the patch. */
     branches: z.boolean().optional(),
+    /** M5-B: execution requests carry a lease admission and un-admitted Source tickets wait. */
+    admission: z.boolean().optional(),
   }),
   source: z.object({ kind: z.string(), enabled: z.boolean() }),
 });
@@ -85,6 +87,15 @@ export const bridgeModelListSchema = z.object({ models: z.array(bridgeModelSchem
 
 export type BridgeModelList = z.infer<typeof bridgeModelListSchema>;
 
+export const bridgeAdmissionSchema = z
+  .object({
+    leaseId: uuidSchema,
+    fencingToken: z.string().regex(/^(0|[1-9][0-9]*)$/),
+  })
+  .strict();
+
+export type BridgeAdmission = z.infer<typeof bridgeAdmissionSchema>;
+
 export const bridgeTriggerInputSchema = z
   .object({
     triggerId: z.string().min(1).max(256),
@@ -100,6 +111,7 @@ export const bridgeTriggerInputSchema = z
      * thread and frozen model/base, and replies go back to this workspace Channel.
      */
     targetTicketId: z.string().min(1).max(200).optional(),
+    admission: bridgeAdmissionSchema.optional(),
     executionSpec: z.object({
       repository: z.string().regex(/^[^/\s]+\/[^/\s]+$/),
       baseBranch: z.string().min(1),
@@ -211,6 +223,9 @@ export const bridgeTicketSnapshotSchema = z.object({
   mode: z.enum(['execute', 'discuss']).optional(),
   planRevision: z.number().int().positive().nullable().optional(),
   paused: bridgeTicketPausedSchema.nullable().optional(),
+  /** M5-B: a Source ticket is held until the platform admits it. */
+  admissionRequired: z.boolean().optional(),
+  admission: bridgeAdmissionSchema.nullable().optional(),
   execution: bridgeTicketExecutionSchema.nullable().optional(),
 });
 
@@ -267,13 +282,33 @@ export const bridgeResumeInputSchema = z
 export type BridgeResumeInput = z.infer<typeof bridgeResumeInputSchema>;
 
 export const bridgeStartInputSchema = z
-  .object({ operationId: z.string().min(1).max(200), planRevision: z.number().int().positive() })
+  .object({
+    operationId: z.string().min(1).max(200),
+    planRevision: z.number().int().positive(),
+    admission: bridgeAdmissionSchema.optional(),
+  })
   .strict();
 
 export type BridgeStartInput = z.infer<typeof bridgeStartInputSchema>;
 
 export const bridgeRetryInputSchema = z
-  .object({ operationId: z.string().min(1).max(200) })
+  .object({ operationId: z.string().min(1).max(200), admission: bridgeAdmissionSchema.optional() })
   .strict();
 
 export type BridgeRetryInput = z.infer<typeof bridgeRetryInputSchema>;
+
+export const bridgeAdmitInputSchema = z
+  .object({
+    admission: bridgeAdmissionSchema,
+    assignmentId: z.string().min(1).max(200).optional(),
+  })
+  .strict();
+
+export type BridgeAdmitInput = z.infer<typeof bridgeAdmitInputSchema>;
+
+export const bridgeAdmitResultSchema = z.object({
+  ticketId: z.string().min(1),
+  admitted: z.literal(true),
+});
+
+export type BridgeAdmitResult = z.infer<typeof bridgeAdmitResultSchema>;

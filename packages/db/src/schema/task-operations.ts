@@ -1,4 +1,5 @@
 import {
+  bigint,
   check,
   index,
   integer,
@@ -13,6 +14,7 @@ import { sql } from 'drizzle-orm';
 
 import { taskOperationKind, taskOperationState } from './enums';
 import { repositories } from './repositories';
+import { runtimeLeases } from './runtime-leases';
 import { taskLinks } from './task-links';
 
 /**
@@ -45,6 +47,15 @@ export const taskOperations = pgTable(
     nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).notNull().defaultNow(),
     leaseOwner: text('lease_owner'),
     leaseExpiresAt: timestamp('lease_expires_at', { withTimezone: true }),
+    /** Execution lease the command was sent under. */
+    runtimeLeaseId: uuid('runtime_lease_id').references(() => runtimeLeases.id, {
+      onDelete: 'set null',
+    }),
+    /** Fencing token of that lease; a result carrying an older generation is rejected. */
+    fencingToken: bigint('fencing_token', { mode: 'bigint' }),
+    /** Set when a late runtime result was refused because its lease generation was stale. */
+    staleAt: timestamp('stale_at', { withTimezone: true }),
+    staleReason: text('stale_reason'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

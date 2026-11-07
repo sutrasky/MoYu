@@ -1,0 +1,201 @@
+{
+  "capturedAt": "2026-11-06T02:27:53.616Z",
+  "beforeUrl": "http://127.0.0.1:4601",
+  "afterUrl": "http://127.0.0.1:4600",
+  "beforeHasExecutionGeneration": false,
+  "afterHasExecutionGeneration": false,
+  "beforeHasMemoryWait": false,
+  "afterHasMemoryWait": true,
+  "beforeSidebar": "Mo\nMoYu\n个人智能体工作台\nWork\nChat\n仓库\n选择仓库\nBouyer12/m5b-ui-alpha\nBouyer12/m5b-ui-beta\nBouyer12/m5b-ui-gamma\n添加仓库\n休眠\nGitHub 监听暂停\n\n仓库休眠。GitHub 监听已暂停，GitHub @ 不会自动唤醒；网页提交或回复会请求唤醒。\n\n执行名额：空闲\n最后进展 今天 10:20\n唤醒实例\n休眠实例\n会话\n0\n\n还没有任务会话\n\n新建任务后，会话会按仓库汇总在这里。\n新建任务\n活动中心\nM6\n设置\nM\nM5-B UI owner\n单所有者",
+  "afterSidebar": "Mo\nMoYu\n个人智能体工作台\nWork\nChat\n仓库\n选择仓库\nBouyer12/m5b-ui-alpha\nBouyer12/m5b-ui-beta\nBouyer12/m5b-ui-gamma\n添加仓库\n休眠\nGitHub 监听暂停\n\n等待内存余量：Projected aggregate memory 6656 MiB is above the 6144 MiB scheduling budget and host headroom/pressure does not allow expansion。不会启动新实例，也不会为腾出内存杀死正在工作的任务。\n\n执行名额：空闲\n等待内存余量\n内存不足，等待实测余量\n最后进展 今天 10:20\n唤醒实例\n休眠实例\n会话\n0\n\n还没有任务会话\n\n新建任务后，会话会按仓库汇总在这里。\n新建任务\n活动中心\nM6\n设置\nM\nM5-B UI owner\n单所有者",
+  "records": [
+    {
+      "name": "before-desktop-light-beta-resource-wait",
+      "file": "/root/src/leases-resources-m5b-a59cb491b2e0/docs/evidence/m5b/before-desktop-light-beta-resource-wait.png",
+      "base": "http://127.0.0.1:4601",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "repo": "Bouyer12/m5b-ui-beta"
+    },
+    {
+      "name": "after-desktop-light-beta-resource-wait",
+      "file": "/root/src/leases-resources-m5b-a59cb491b2e0/docs/evidence/m5b/after-desktop-light-beta-resource-wait.png",
+      "base": "http://127.0.0.1:4600",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "repo": "Bouyer12/m5b-ui-beta"
+    },
+    {
+      "name": "before-mobile-light-beta-resource-wait",
+      "file": "/root/src/leases-resources-m5b-a59cb491b2e0/docs/evidence/m5b/before-mobile-light-beta-resource-wait.png",
+      "base": "http://127.0.0.1:4601",
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "repo": "Bouyer12/m5b-ui-beta"
+    },
+    {
+      "name": "after-mobile-light-beta-resource-wait",
+      "file": "/root/src/leases-resources-m5b-a59cb491b2e0/docs/evidence/m5b/after-mobile-light-beta-resource-wait.png",
+      "base": "http://127.0.0.1:4600",
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "repo": "Bouyer12/m5b-ui-beta"
+    },
+    {
+      "name": "before-desktop-dark-beta-resource-wait",
+      "file": "/root/src/leases-resources-m5b-a59cb491b2e0/docs/evidence/m5b/before-desktop-dark-beta-resource-wait.png",
+      "base": "http://127.0.0.1:4601",
+      "theme": "dark",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "repo": "Bouyer12/m5b-ui-beta"
+    },
+    {
+      "name": "after-desktop-dark-beta-resource-wait",
+      "file": "/root/src/leases-resources-m5b-a59cb491b2e0/docs/evidence/m5b/after-desktop-dark-beta-resource-wait.png",
+      "base": "http://127.0.0.1:4600",
+      "theme": "dark",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "repo": "Bouyer12/m5b-ui-beta"
+    },
+    {
+      "name": "before-mobile-dark-beta-resource-wait",
+      "file": "/root/src/leases-resources-m5b-a59cb491b2e0/docs/evidence/m5b/before-mobile-dark-beta-resource-wait.png",
+      "base": "http://127.0.0.1:4601",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "repo": "Bouyer12/m5b-ui-beta"
+    },
+    {
+      "name": "after-mobile-dark-beta-resource-wait",
+      "file": "/root/src/leases-resources-m5b-a59cb491b2e0/docs/evidence/m5b/after-mobile-dark-beta-resource-wait.png",
+      "base": "http://127.0.0.1:4600",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "repo": "Bouyer12/m5b-ui-beta"
+    },
+    {
+      "name": "before-desktop-light-gamma-retry-oom",
+      "file": "/root/src/leases-resources-m5b-a59cb491b2e0/docs/evidence/m5b/before-desktop-light-gamma-retry-oom.png",
+      "base": "http://127.0.0.1:4601",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "repo": "Bouyer12/m5b-ui-gamma"
+    },
+    {
+      "name": "after-desktop-light-gamma-retry-oom",
+      "file": "/root/src/leases-resources-m5b-a59cb491b2e0/docs/evidence/m5b/after-desktop-light-gamma-retry-oom.png",
+      "base": "http://127.0.0.1:4600",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "repo": "Bouyer12/m5b-ui-gamma"
+    },
+    {
+      "name": "before-desktop-light-alpha-online",
+      "file": "/root/src/leases-resources-m5b-a59cb491b2e0/docs/evidence/m5b/before-desktop-light-alpha-online.png",
+      "base": "http://127.0.0.1:4601",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "repo": "Bouyer12/m5b-ui-alpha"
+    },
+    {
+      "name": "after-desktop-light-alpha-online",
+      "file": "/root/src/leases-resources-m5b-a59cb491b2e0/docs/evidence/m5b/after-desktop-light-alpha-online.png",
+      "base": "http://127.0.0.1:4600",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "repo": "Bouyer12/m5b-ui-alpha"
+    }
+  ],
+  "repos": {
+    "before_alpha": {
+      "executionGeneration": false,
+      "memoryWait": false,
+      "oom": false,
+      "retryExhausted": false,
+      "executionStopProof": false,
+      "runtimeWait": false,
+      "text": "Mo\nMoYu\n个人智能体工作台\nWork\nChat\n仓库\n选择仓库\nBouyer12/m5b-ui-alpha\nBouyer12/m5b-ui-beta\nBouyer12/m5b-ui-gamma\n添加仓库\n在线\nGitHub 监听中\n\n在线：GitHub 监听中，可提交或继续任务。\n\n执行名额：空闲\n最后进展 今天 10:22\n唤醒实例\n休眠实例\n会话\n0\n\n还没有任务会话\n\n新建任务后，会话会按仓库汇总在这里。\n新建任务\n活动中心\nM6\n设置\nM\nM5-B UI owner\n单所有者"
+    },
+    "before_beta": {
+      "executionGeneration": false,
+      "memoryWait": false,
+      "oom": false,
+      "retryExhausted": false,
+      "executionStopProof": false,
+      "runtimeWait": false,
+      "text": "Mo\nMoYu\n个人智能体工作台\nWork\nChat\n仓库\n选择仓库\nBouyer12/m5b-ui-alpha\nBouyer12/m5b-ui-beta\nBouyer12/m5b-ui-gamma\n添加仓库\n休眠\nGitHub 监听暂停\n\n仓库休眠。GitHub 监听已暂停，GitHub @ 不会自动唤醒；网页提交或回复会请求唤醒。\n\n执行名额：空闲\n最后进展 今天 10:20\n唤醒实例\n休眠实例\n会话\n0\n\n还没有任务会话\n\n新建任务后，会话会按仓库汇总在这里。\n新建任务\n活动中心\nM6\n设置\nM\nM5-B UI owner\n单所有者"
+    },
+    "before_gamma": {
+      "executionGeneration": false,
+      "memoryWait": false,
+      "oom": false,
+      "retryExhausted": false,
+      "executionStopProof": false,
+      "runtimeWait": false,
+      "text": "Mo\nMoYu\n个人智能体工作台\nWork\nChat\n仓库\n选择仓库\nBouyer12/m5b-ui-alpha\nBouyer12/m5b-ui-beta\nBouyer12/m5b-ui-gamma\n添加仓库\n故障\n监听状态未知\n\n实例故障：Stopped after 3 failed start attempts; an explicit retry is required. The instance cgroup recorded an OOM kill; the runtime process exited。在线名额已回收，可重试启动。\n\n执行名额：空闲\n最后进展 今天 10:15\n重试启动\n休眠实例\n会话\n0\n\n还没有任务会话\n\n新建任务后，会话会按仓库汇总在这里。\n新建任务\n活动中心\nM6\n设置\nM\nM5-B UI owner\n单所有者"
+    },
+    "after_alpha": {
+      "executionGeneration": true,
+      "memoryWait": false,
+      "oom": false,
+      "retryExhausted": false,
+      "executionStopProof": false,
+      "runtimeWait": false,
+      "text": "Mo\nMoYu\n个人智能体工作台\nWork\nChat\n仓库\n选择仓库\nBouyer12/m5b-ui-alpha\nBouyer12/m5b-ui-beta\nBouyer12/m5b-ui-gamma\n添加仓库\n在线\nGitHub 监听中\n\n在线：GitHub 监听中，可提交或继续任务。\n\n执行名额：空闲\n内存 1.6 GiB\n执行代次 1\n最后进展 今天 10:22\n唤醒实例\n休眠实例\n会话\n0\n\n还没有任务会话\n\n新建任务后，会话会按仓库汇总在这里。\n新建任务\n活动中心\nM6\n设置\nM\nM5-B UI owner\n单所有者"
+    },
+    "after_beta": {
+      "executionGeneration": false,
+      "memoryWait": true,
+      "oom": false,
+      "retryExhausted": false,
+      "executionStopProof": false,
+      "runtimeWait": false,
+      "text": "Mo\nMoYu\n个人智能体工作台\nWork\nChat\n仓库\n选择仓库\nBouyer12/m5b-ui-alpha\nBouyer12/m5b-ui-beta\nBouyer12/m5b-ui-gamma\n添加仓库\n休眠\nGitHub 监听暂停\n\n等待内存余量：Projected aggregate memory 6656 MiB is above the 6144 MiB scheduling budget and host headroom/pressure does not allow expansion。不会启动新实例，也不会为腾出内存杀死正在工作的任务。\n\n执行名额：空闲\n等待内存余量\n内存不足，等待实测余量\n最后进展 今天 10:20\n唤醒实例\n休眠实例\n会话\n0\n\n还没有任务会话\n\n新建任务后，会话会按仓库汇总在这里。\n新建任务\n活动中心\nM6\n设置\nM\nM5-B UI owner\n单所有者"
+    },
+    "after_gamma": {
+      "executionGeneration": true,
+      "memoryWait": false,
+      "oom": true,
+      "retryExhausted": true,
+      "executionStopProof": false,
+      "runtimeWait": true,
+      "text": "Mo\nMoYu\n个人智能体工作台\nWork\nChat\n仓库\n选择仓库\nBouyer12/m5b-ui-alpha\nBouyer12/m5b-ui-beta\nBouyer12/m5b-ui-gamma\n添加仓库\n故障\n监听状态未知\n\n自动重试已用尽：Stopped after 3 failed start attempts; an explicit retry is required. The instance cgroup recorded an OOM kill; the runtime process exited\n\n执行名额：未知\n等待运行时\n已发生 OOM，等待人工处理\n执行代次 2\n最后进展 今天 10:15\n重试启动\n休眠实例\n会话\n0\n\n还没有任务会话\n\n新建任务后，会话会按仓库汇总在这里。\n新建任务\n活动中心\nM6\n设置\nM\nM5-B UI owner\n单所有者"
+    }
+  }
+}

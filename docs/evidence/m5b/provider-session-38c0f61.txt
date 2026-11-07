@@ -1,0 +1,19 @@
+date=2026-11-06T14:11:00+08:00
+runtime_build=/opt/m5b-live/upstream-build
+lib_index_sha256=c2bb690163cfe8af00d477ecca7ff35b6d757be53bc90dea4398e94ac04590c3
+package_json_sha256=d428e669805ea1dfb6a4900bddbffe3cafb8f06a0b1eb139266c2b2f6b94b021
+profile=probe1 MOYU_REQUIRE_ADMISSION=1 panel=3952 bridge=3951
+provider=loopback 3851, model local-test, LOWERCASE synthetic responses, trigger env workspace:probe-2
+candidate=workspace:probe-2 explicit, admission lease=...602 token=7
+request=tools include orchestrator_route; roles system+9 user; no prior assistant/tool state
+response=tool_calls finish=tool_calls id=chatcmpl-local-1 name=orchestrator_route
+arguments={"decisions":[{"kind":"accept","trigger_id":"workspace:probe-2","title":"Fix README probe line","worktree_name":"fix-readme-probe","acknowledgement":"On it: updating the README probe line."}]}
+session_result=next request contains assistant+tool; provider returned finish=stop (sawRouteResult=true)
+decision=ticket.linked ticketId=a1aac2158d78726e39c0d5eff7b9da9d state=queued, then ticket.state_changed failed
+assignment=0e1b2b0a3902fdc746cd9fc842a62811 exists
+failure=prepare command failed: Host key verification failed (non-root profile had no known_hosts/deploy key)
+child_process=0 (worker never passed prepare)
+fix=added /var/lib/m5b-live/.ssh/known_hosts and a repo deploy key; non-root git clone of Bouyer12/m5b-sup-probe succeeds
+after_fix=workspace:probe-3 stored, but the same DSH state delivered no new provider request/decision; no new Ticket/Assignment
+boundary=loopback synthetic provider only; shared 3082 and production credentials untouched
+not_verified=real worker subprocess, dual-entry, pause/start, restart counts
